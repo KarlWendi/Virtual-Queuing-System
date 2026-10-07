@@ -71,6 +71,7 @@ Queue data is stored in memory and is cleared when the application exits. The Ad
 | File | Purpose |
 | --- | --- |
 | `First Window.py` | Tkinter interface, queue management, and client notifications |
+| `server.py` | HTTP queue server with join, leave, serve, and status operations |
 | `README.md` | Setup instructions and project overview |
 
 ## Manual checks
@@ -87,3 +88,35 @@ Queue data is stored in memory and is cleared when the application exits. The Ad
 - A shared server so clients can join from different devices.
 - Persistent queue storage.
 - Administrator authentication.
+
+## Queue server checkpoint
+
+The server is implemented separately from the desktop application. The Tkinter interface still uses its local queue and has not yet been connected to the server. The API helper (`queue_api.py`) is the next step.
+
+Start the server in its own terminal:
+
+```sh
+python server.py
+```
+
+The server listens at `http://127.0.0.1:8000` on the same computer. Queue and client status data are held in memory and reset when the server restarts.
+
+| Method | Endpoint | Purpose | JSON request body |
+| --- | --- | --- | --- |
+| GET | `/queue` | Read queue positions and people ahead | None |
+| GET | `/status/<client-id>` | Read waiting, served, or left status | None |
+| POST | `/join` | Join and receive a unique client ID | `{"name":"Adam","issue":"Software Issue"}` |
+| POST | `/leave` | Remove a waiting client by ID | `{"id":"<client-id>"}` |
+| POST | `/serve` | Call the first waiting client | `{}` |
+
+Test in a second PowerShell terminal:
+
+```powershell
+$body = @{ name = "Adam"; issue = "Software Issue" } | ConvertTo-Json
+$adam = Invoke-RestMethod -Uri "http://127.0.0.1:8000/join" -Method Post -ContentType "application/json" -Body $body
+Invoke-RestMethod -Uri "http://127.0.0.1:8000/status/$($adam.id)"
+Invoke-RestMethod -Uri "http://127.0.0.1:8000/serve" -Method Post -ContentType "application/json" -Body '{}'
+Invoke-RestMethod -Uri "http://127.0.0.1:8000/status/$($adam.id)"
+```
+
+The status changes from `waiting` to `served`. Client notifications will use this endpoint when Tkinter is connected. The server currently has no authentication and is bound to the local computer for development.
