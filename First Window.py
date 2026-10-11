@@ -1,6 +1,8 @@
 import tkinter as tk 
 from tkinter import messagebox
 
+from queue_api import api_request 
+
 # QUEUE DATA
 queue = []
 
@@ -9,6 +11,12 @@ queue_displays = []
 client_notifications = {}
 
 def refresh_queue_displays():
+    try:
+        response = api_request("/queue")
+    except RuntimeError as error:
+        messagebox.showerror("Connection Error", str(error))
+        return
+
     for display in queue_displays[:]:
         if not display.winfo_exists():
             queue_displays.remove(display)
@@ -16,16 +24,16 @@ def refresh_queue_displays():
 
         display.delete(0, tk.END)
 
-        if not queue:
+        if not response["queue"]:
             display.insert(tk.END, "The queue is currently empty.")
         else:
-            for position, client in enumerate(queue, start=1):
+            for client in response["queue"]:
                 display.insert(
                     tk.END,
-                    f"{position}. {client['name']} - {client['issue']} "
-                    f"({position - 1} people ahead)"
+                    f"{client['position']}. {client['name']} - "
+                    f"{client['issue']} "
+                    f"({client['people_ahead']} people ahead)"
                 )
-
 # ----------------------------
 # CLIENT SCREEN
 # ----------------------------
@@ -38,8 +46,6 @@ def open_client_screen():
     client_window.configure(bg="#F4F6F8")
     
     current_client = None 
-
-
 
     # Client page title
 
@@ -183,32 +189,60 @@ def open_client_screen():
             )
             return
 
-        client = {
-            "name": name,
-            "issue": issue
-        }
+        try:
+            client = api_request(
+                "/join",
+                {"name": name, "issue": issue}
+            )
+        except RuntimeError as error:
+            messagebox.showerror(
+                "Could Not Join",
+                str(error),
+                parent=client_window
+            )
+            return
 
-        queue.append(client)
         current_client = client
-        client_notifications[id(client)] = notify_client
         refresh_queue_displays()
-
-        position = len(queue)
-        people_ahead = position - 1
 
         messagebox.showinfo(
             "Joined Queue",
-            f"Name: {name}\n"
-            f"IT Support Issue: {issue}\n"
-            f"Position: {position}\n"
-            f"People ahead: {people_ahead}",
+            f"Name: {client['name']}\n"
+            f"IT Support Issue: {client['issue']}\n"
+            f"Position: {client['position']}\n"
+            f"People ahead: {client['people_ahead']}",
             parent=client_window
         )
 
         name_entry.delete(0, tk.END)
         selected_problem.set("Select an issue")
 
-    # Leave Queue function
+            # Check whether this client has been served
+    def check_client_status():
+        if not client_window.winfo_exists():
+            return
+
+        try:
+            if current_client is not None:
+                client_id = current_client["id"]
+
+                try:
+                    response = api_request(
+                        f"/status/{client_id}"
+                    )
+                except RuntimeError:
+                    # Try again later if the server is unavailable.
+                    return
+
+                refresh_queue_displays()
+
+                if response["status"] == "served":
+                    notify_client()
+        finally:
+            if client_window.winfo_exists():
+                client_window.after(2000, check_client_status)
+
+        # Leave Queue function
     def leave_queue():
         nonlocal current_client
 
@@ -220,23 +254,28 @@ def open_client_screen():
             )
             return
 
-        name = current_client["name"]
+        try:
+            response = api_request(
+                "/leave",
+                {"id": current_client["id"]}
+            )
+        except RuntimeError as error:
+            messagebox.showerror(
+                "Could Not Leave",
+                str(error),
+                parent=client_window
+            )
+            return
 
-        for index, client in enumerate(queue):
-            if client is current_client:
-                queue.pop(index)
-                break
-
-        client_notifications.pop(id(current_client), None)
         current_client = None
         refresh_queue_displays()
 
         messagebox.showinfo(
             "Left Queue",
-            f"{name}, you have left the queue.",
+            f"{response['name']}, you have left the queue.",
             parent=client_window
         )
-
+        
     # Join Queue button
     join_button = tk.Button(
         client_window,
@@ -313,15 +352,18 @@ def open_client_screen():
             queue_displays.remove(queue_display)
 
         if current_client is not None:
-            for index, client in enumerate(queue):
-                if client is current_client:
-                    queue.pop(index)
-                    break
+            try:
+                api_request(
+                    "/leave",
+                    {"id": current_client["id"]}
+                )
+            except RuntimeError as error:
+                print(f"Could not remove closed client: {error}")
 
-            client_notifications.pop(id(current_client), None)
             current_client = None
 
-        refresh_queue_displays()
+        if queue_displays:
+            refresh_queue_displays()
 
     client_window.bind(
         "<Destroy>",
@@ -329,6 +371,8 @@ def open_client_screen():
         add="+"
     )
 
+    client_window.after(2000, check_client_status)
+   
 # ----------------------------
 # ADMIN SCREEN
 # ----------------------------
@@ -379,21 +423,17 @@ def open_admin_screen():
     refresh_queue_displays()
 
     def serve_next():
-        if not queue:
-            messagebox.showinfo(
-                "Queue Empty",
-                "There is nobody waiting.",
+        try:
+            client = api_request("/serve", {})
+        except RuntimeError as error:
+            messagebox.showerror(
+                "Could Not Serve",
+                str(error),
                 parent=admin_window
             )
             return
 
-        client = queue.pop(0)
-        notify = client_notifications.pop(id(client), None)
-
         refresh_queue_displays()
-
-        if notify is not None:
-            notify()
 
         messagebox.showinfo(
             "Client Called",

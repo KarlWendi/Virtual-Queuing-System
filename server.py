@@ -231,7 +231,7 @@ if __name__ == "__main__":
         QueueRequestHandler
     )
 
-    print("Queue server running at http://127.0.0.1:8000")
+    print("Queue server running at http://127.0.0.1:8000/queue")
     print("Press Ctrl+C to stop.")
 
     try:

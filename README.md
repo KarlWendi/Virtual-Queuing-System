@@ -31,7 +31,13 @@ git clone https://github.com/KarlWendi/Virtual-Queuing-System.git
 cd Virtual-Queuing-System
 ```
 
-Run the application:
+Start the server first and leave it running:
+
+```sh
+python server.py
+```
+
+In a second terminal, run the application:
 
 ```sh
 python "First Window.py"
@@ -62,9 +68,9 @@ Adam receives: "It is now your turn!"
 
 ## Current scope
 
-This is a local desktop prototype. Multiple Client windows share a queue within one running application. Separate application instances and different computers do not share the queue yet.
+This is a desktop prototype backed by a shared HTTP queue server. Multiple application instances on the same computer can use the same server. The server currently listens only on localhost; access from different devices is the next development stage.
 
-Queue data is stored in memory and is cleared when the application exits. The Admin screen is currently accessible without authentication. Client notifications appear as Tkinter message boxes.
+Queue data is stored in server memory and is cleared when the server exits. The Admin screen is currently accessible without authentication. Client notifications appear as Tkinter message boxes.
 
 ## Project structure
 
@@ -72,6 +78,7 @@ Queue data is stored in memory and is cleared when the application exits. The Ad
 | --- | --- |
 | `First Window.py` | Tkinter interface, queue management, and client notifications |
 | `server.py` | HTTP queue server with join, leave, serve, and status operations |
+| `queue_api.py` | HTTP request helper and readable server errors |
 | `README.md` | Setup instructions and project overview |
 
 ## Manual checks
@@ -85,13 +92,15 @@ Queue data is stored in memory and is cleared when the application exits. The Ad
 
 ## Planned improvements
 
-- A shared server so clients can join from different devices.
+- Configure and test server access from different devices.
+- Background requests to keep the interface responsive during network delays.
+- Automatic refresh for idle Client and Admin windows.
 - Persistent queue storage.
 - Administrator authentication.
 
-## Queue server checkpoint
+## Queue server integration
 
-The server is implemented separately from the desktop application. The Tkinter interface still uses its local queue and has not yet been connected to the server. The API helper (`queue_api.py`) is the next step.
+The Tkinter interface uses `queue_api.py` to join, leave, serve, and read the server queue. Closing a Client window requests removal from the server. Waiting Client windows check their status every two seconds and show a notification after they are served. Queue displays refresh after actions and successful status checks; idle windows do not yet poll independently.
 
 Start the server in its own terminal:
 
@@ -119,4 +128,6 @@ Invoke-RestMethod -Uri "http://127.0.0.1:8000/serve" -Method Post -ContentType "
 Invoke-RestMethod -Uri "http://127.0.0.1:8000/status/$($adam.id)"
 ```
 
-The status changes from `waiting` to `served`. Client notifications will use this endpoint when Tkinter is connected. The server currently has no authentication and is bound to the local computer for development.
+The status changes from `waiting` to `served`. Client notifications use this endpoint in the Tkinter application. The server currently has no authentication and is bound to the local computer for development.
+
+Requests currently run on the Tkinter interface thread and may pause the window during connection delays. If a leave request fails while a window closes, its queue entry may remain; the terminal reports the failure.
