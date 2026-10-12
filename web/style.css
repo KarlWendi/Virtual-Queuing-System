@@ -1,0 +1,280 @@
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: #f4f6f8;
+  color: #1f2937;
+  font:
+    16px/1.6 Arial,
+    sans-serif;
+}
+header {
+  max-width: 1120px;
+  margin: auto;
+  padding: 26px 28px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #dce2e9;
+}
+a {
+  color: #344b73;
+  text-decoration: none;
+}
+nav {
+  display: flex;
+  gap: 24px;
+}
+.brand {
+  font-weight: 800;
+  font-size: 20px;
+  color: #1f2937;
+}
+.brand span {
+  display: block;
+  font-size: 12px;
+  font-weight: 400;
+  color: #637086;
+}
+main {
+  max-width: 1120px;
+  margin: auto;
+  padding: 45px 28px;
+}
+.eyebrow {
+  font-size: 12px;
+  letter-spacing: 2px;
+  font-weight: 700;
+  color: #3269bc;
+}
+h1 {
+  font-size: clamp(32px, 5vw, 50px);
+  line-height: 1.14;
+  letter-spacing: -1.5px;
+  margin: 12px 0 20px;
+}
+.intro p {
+  color: #637086;
+  max-width: 550px;
+}
+.layout {
+  display: grid;
+  grid-template-columns: 1fr 1.25fr;
+  gap: 24px;
+  margin-top: 32px;
+}
+.card {
+  background: white;
+  border: 1px solid #e0e5ec;
+  border-radius: 18px;
+  padding: 28px;
+  box-shadow: 0 8px 24px #20345306;
+}
+h2 {
+  font-size: 22px;
+  margin: 0 0 20px;
+}
+label {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  margin: 20px 0 8px;
+}
+input,
+select {
+  width: 100%;
+  padding: 13px;
+  border: 1px solid #ccd5e1;
+  border-radius: 8px;
+  background: white;
+  font: inherit;
+  color: inherit;
+}
+button {
+  width: 100%;
+  border: 0;
+  border-radius: 8px;
+  background: #2563b8;
+  color: white;
+  padding: 14px;
+  font: 700 16px Arial;
+  cursor: pointer;
+  margin-top: 22px;
+}
+button:hover {
+  background: #1b4e94;
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+.secondary {
+  background: #eef2f7;
+  color: #344b73;
+}
+.secondary:hover {
+  background: #dfe7f2;
+}
+.queue-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.queue-heading h2 {
+  margin: 0;
+}
+.badge {
+  background: #edf3fc;
+  border-radius: 20px;
+  padding: 4px 12px;
+  color: #3269bc;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.small,
+footer {
+  font-size: 13px;
+  color: #637086;
+}
+ol {
+  padding: 0;
+  list-style: none;
+}
+li {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border-bottom: 1px solid #edf0f4;
+  padding: 17px 0;
+}
+.number {
+  display: grid;
+  place-items: center;
+  min-width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: #edf3fc;
+  color: #2563b8;
+  font-weight: 700;
+}
+.person {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.person strong,
+.person span {
+  display: block;
+}
+.person span,
+.ahead {
+  font-size: 12px;
+  color: #637086;
+}
+.empty {
+  padding: 35px 0;
+  color: #637086;
+  text-align: center;
+}
+.stats {
+  display: flex;
+  gap: 36px;
+  margin: 25px 0;
+}
+.stats strong,
+.stats span {
+  display: block;
+}
+.stats strong {
+  font-size: 44px;
+  line-height: 1.2;
+  color: #2563b8;
+}
+.stats span {
+  font-size: 13px;
+  color: #637086;
+}
+#message {
+  font-size: 14px;
+  margin-bottom: 0;
+}
+.error {
+  color: #b32626;
+}
+footer {
+  margin-top: 24px;
+}
+dialog {
+  border: 0;
+  border-radius: 18px;
+  padding: 32px;
+  max-width: 400px;
+  width: 90%;
+}
+dialog::backdrop {
+  background: #14263a88;
+}
+:focus-visible {
+  outline: 3px solid #86b7ff;
+  outline-offset: 3px;
+}
+[hidden] {
+  display: none !important;
+}
+@media (max-width: 700px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+  header {
+    padding: 20px;
+  }
+  main {
+    padding: 30px 20px;
+  }
+  nav {
+    gap: 14px;
+    font-size: 13px;
+  }
+  .card {
+    padding: 22px;
+  }
+  .ahead {
+    max-width: 60px;
+    text-align: right;
+  }
+}
+.auth-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+.auth-links button,
+.nav-button {
+  width: auto;
+  background: transparent;
+  color: #2563b8;
+  padding: 5px 0;
+  margin: 0;
+  font-size: 13px;
+}
+.nav-button {
+  margin-left: 12px;
+}
+input[readonly] {
+  background: #f4f6f8;
+}
+#auth-description {
+  color: #637086;
+  font-size: 14px;
+}
+
+.dev-notice {
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: #fff3d6;
+  color: #715315;
+  font-size: 13px;
+}

@@ -2,7 +2,6 @@ import json
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-
 SERVER_URL = "http://127.0.0.1:8000"
 
 
@@ -13,9 +12,7 @@ def api_request(path, data=None):
         body = json.dumps(data).encode("utf-8")
 
     request = Request(
-        SERVER_URL + path,
-        data=body,
-        headers={"Content-Type": "application/json"}
+        SERVER_URL + path, data=body, headers={"Content-Type": "application/json"}
     )
 
     try:

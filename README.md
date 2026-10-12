@@ -1,133 +1,72 @@
 # Virtual Queuing System
 
-A Python desktop application for managing an IT help desk queue. Built with Tkinter, it lets clients join a first-come, first-served queue while an administrator calls the next person for support.
+A browser-based IT help desk queue with a Python server. Clients join in order, see their position and people ahead, leave the queue, and receive an in-page notification when called. Admins use a separate page to serve the next person.
 
-## Features
+## Run the browser app
 
-- Join with a name and a selected IT support issue.
-- View a live numbered queue, including each person's issue and how many people are ahead.
-- Keep all open Client and Admin windows synchronized.
-- Leave the queue voluntarily, or leave automatically when the Client window closes.
-- Serve the first person through the Admin screen and notify them in their Client window.
-- Validate missing names, missing issues, and duplicate joins from the same Client window.
-
-## Requirements
-
-- Python 3 with Tkinter installed.
-- A desktop environment that can display Tkinter windows.
-
-The application uses Python's standard library; no third-party packages are required. Tkinter is normally included with the standard Python installer for Windows. Check your installation with:
-
-```sh
-python -m tkinter
-```
-
-## Getting started
-
-Clone the repository and enter its folder:
-
-```sh
-git clone https://github.com/KarlWendi/Virtual-Queuing-System.git
-cd Virtual-Queuing-System
-```
-
-Start the server first and leave it running:
+Requires Python 3. No third-party packages are needed.
 
 ```sh
 python server.py
 ```
 
-In a second terminal, run the application:
+Leave the server running and open:
 
-```sh
-python "First Window.py"
-```
+- Client: http://127.0.0.1:8000/
+- Admin: http://127.0.0.1:8000/admin
 
-On Windows, you can also use `py` instead of `python`.
+The queue refreshes every two seconds. Use separate browser profiles or private windows for different accounts. A client's place is tied to their account and survives refreshes and server restarts.
 
-## How to use it
+The account-enabled server defaults to localhost. Remote sign-in requires HTTPS hosting; online hosting is not configured yet.
 
-1. Click **Client** in the main window. Open a separate Client window for each person.
-2. Enter a name, select an IT support issue, and click **Join Queue**.
-3. Watch the **Current Queue** display for queue order and people ahead.
-4. Click **Leave Queue**, or close the Client window, to leave.
-5. Click **Admin** in the main window and use **Serve Next** to call the person at the front.
-6. The called person receives a notification, and the remaining clients move up one place.
+## Browser behaviour
 
-## Example
+Click **Leave Queue** to leave. Closing a browser tab keeps the entry in the queue: browsers cannot reliably notify the server when a tab closes. Notifications appear while the client page is open; mobile browsers may delay updates when a page is in the background.
 
-```text
-Before Serve Next:
-1. Adam - Wi-Fi / Network Issue (0 people ahead)
-2. Sarah - Software Issue (1 people ahead)
+Accounts now require email verification. Admin actions require an assigned admin role. Accounts and queue data persist in SQLite. See [ACCOUNT_SETUP.md](ACCOUNT_SETUP.md) for email setup and local testing.
 
-After Serve Next:
-Adam receives: "It is now your turn!"
-1. Sarah - Software Issue (0 people ahead)
-```
-
-## Current scope
-
-This is a desktop prototype backed by a shared HTTP queue server. Multiple application instances on the same computer can use the same server. The server currently listens only on localhost; access from different devices is the next development stage.
-
-Queue data is stored in server memory and is cleared when the server exits. The Admin screen is currently accessible without authentication. Client notifications appear as Tkinter message boxes.
-
-## Project structure
+## Files
 
 | File | Purpose |
 | --- | --- |
-| `First Window.py` | Tkinter interface, queue management, and client notifications |
-| `server.py` | HTTP queue server with join, leave, serve, and status operations |
-| `queue_api.py` | HTTP request helper and readable server errors |
-| `README.md` | Setup instructions and project overview |
+| `server.py` | Browser pages and shared queue HTTP API |
+| `web/index.html` | Client and Admin page structure |
+| `web/style.css` | Responsive layout and styling |
+| `web/app.js` | Joining, leaving, live refresh, and turn notifications |
+| `First Window.py` | Previous Tkinter interface, still available |
+| `queue_api.py` | HTTP helper used by the Tkinter interface |
 
-## Manual checks
+## API
 
-- Join from two Client windows and confirm both show the same queue.
-- Leave from the first window and confirm the second client moves to position 1.
-- Close a waiting Client window and confirm that person is removed.
-- Serve the next client and confirm they receive a notification.
-- Serve an empty queue and confirm the empty-queue message appears.
-- Try joining without a name or issue and confirm validation prevents the join.
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| GET | `/queue` | Read the queue |
+| GET | `/status/<client-id>` | Read waiting, served, or left status |
+| POST | `/join` | Join with `name` and `issue` |
+| POST | `/leave` | Leave with a client `id` |
+| POST | `/serve` | Serve the first client; send `{}` |
 
-## Planned improvements
+## Manual test
 
-- Configure and test server access from different devices.
-- Background requests to keep the interface responsive during network delays.
-- Automatic refresh for idle Client and Admin windows.
-- Persistent queue storage.
-- Administrator authentication.
+1. Open the client page in two tabs and join as Adam and Sarah.
+2. Open `/admin` and click **Serve Next**.
+3. Adam receives a turn dialog, and Sarah becomes position 1.
+4. Sarah clicks **Leave Queue** and the queue becomes empty.
+5. Refresh a waiting client's tab and confirm their place is retained.
+6. Test the layout on a narrow phone screen.
 
-## Queue server integration
+## Next stages
 
-The Tkinter interface uses `queue_api.py` to join, leave, serve, and read the server queue. Closing a Client window requests removal from the server. Waiting Client windows check their status every two seconds and show a notification after they are served. Queue displays refresh after actions and successful status checks; idle windows do not yet poll independently.
+- Online hosting with a shared persistent queue.
+- Configure a production email service and HTTPS hosting.
+- Better recovery from interrupted requests.
 
-Start the server in its own terminal:
+## Verified accounts
 
-```sh
-python server.py
-```
+Registration, sign-in, sign-out, verification resend, and password reset are available in the browser. Follow [ACCOUNT_SETUP.md](ACCOUNT_SETUP.md) before testing accounts. Real email delivery still needs provider configuration.
 
-The server listens at `http://127.0.0.1:8000` on the same computer. Queue and client status data are held in memory and reset when the server restarts.
+For real email testing with a Gmail account, run `python start_gmail.py` and follow the [Gmail setup instructions](ACCOUNT_SETUP.md#gmail-initial-real-email-testing-without-a-domain). You need a Google app password.
 
-| Method | Endpoint | Purpose | JSON request body |
-| --- | --- | --- | --- |
-| GET | `/queue` | Read queue positions and people ahead | None |
-| GET | `/status/<client-id>` | Read waiting, served, or left status | None |
-| POST | `/join` | Join and receive a unique client ID | `{"name":"Adam","issue":"Software Issue"}` |
-| POST | `/leave` | Remove a waiting client by ID | `{"id":"<client-id>"}` |
-| POST | `/serve` | Call the first waiting client | `{}` |
+## Hosted deployment
 
-Test in a second PowerShell terminal:
-
-```powershell
-$body = @{ name = "Adam"; issue = "Software Issue" } | ConvertTo-Json
-$adam = Invoke-RestMethod -Uri "http://127.0.0.1:8000/join" -Method Post -ContentType "application/json" -Body $body
-Invoke-RestMethod -Uri "http://127.0.0.1:8000/status/$($adam.id)"
-Invoke-RestMethod -Uri "http://127.0.0.1:8000/serve" -Method Post -ContentType "application/json" -Body '{}'
-Invoke-RestMethod -Uri "http://127.0.0.1:8000/status/$($adam.id)"
-```
-
-The status changes from `waiting` to `served`. Client notifications use this endpoint in the Tkinter application. The server currently has no authentication and is bound to the local computer for development.
-
-Requests currently run on the Tkinter interface thread and may pause the window during connection delays. If a leave request fails while a window closes, its queue entry may remain; the terminal reports the failure.
+A Python-compatible HTTPS deployment is prepared in `render.yaml`. It requires paid hosting and a persistent disk to keep Gmail SMTP and SQLite. See [DEPLOYMENT.md](DEPLOYMENT.md). No public deployment has been created yet.

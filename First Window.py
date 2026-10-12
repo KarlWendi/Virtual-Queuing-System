@@ -1,7 +1,7 @@
-import tkinter as tk 
+import tkinter as tk
 from tkinter import messagebox
 
-from queue_api import api_request 
+from queue_api import api_request
 
 # QUEUE DATA
 queue = []
@@ -9,6 +9,7 @@ queue = []
 queue_displays = []
 
 client_notifications = {}
+
 
 def refresh_queue_displays():
     try:
@@ -32,11 +33,14 @@ def refresh_queue_displays():
                     tk.END,
                     f"{client['position']}. {client['name']} - "
                     f"{client['issue']} "
-                    f"({client['people_ahead']} people ahead)"
+                    f"({client['people_ahead']} people ahead)",
                 )
+
+
 # ----------------------------
 # CLIENT SCREEN
 # ----------------------------
+
 
 def open_client_screen():
 
@@ -44,8 +48,8 @@ def open_client_screen():
     client_window.title("Client - IT Help Desk")
     client_window.geometry("700x800")
     client_window.configure(bg="#F4F6F8")
-    
-    current_client = None 
+
+    current_client = None
 
     # Client page title
 
@@ -54,11 +58,10 @@ def open_client_screen():
         text="IT Support Queue",
         font=("Arial", 26, "bold"),
         bg="#F4F6F8",
-        fg="#1F2937"
+        fg="#1F2937",
     )
 
     client_title.pack(pady=30)
-
 
     # Instructions
 
@@ -67,11 +70,10 @@ def open_client_screen():
         text="Enter your details to join the queue",
         font=("Arial", 14),
         bg="#F4F6F8",
-        fg="#6B7280"
+        fg="#6B7280",
     )
 
     instruction_label.pack(pady=10)
-
 
     # Name label
 
@@ -80,22 +82,16 @@ def open_client_screen():
         text="Your Name:",
         font=("Arial", 13, "bold"),
         bg="#F4F6F8",
-        fg="#1F2937"
+        fg="#1F2937",
     )
 
     name_label.pack(pady=(20, 5))
 
-
     # Name entry
 
-    name_entry = tk.Entry(
-        client_window,
-        font=("Arial", 14),
-        width=30
-    )
+    name_entry = tk.Entry(client_window, font=("Arial", 14), width=30)
 
     name_entry.pack(pady=5)
-
 
     # Problem label
 
@@ -104,44 +100,34 @@ def open_client_screen():
         text="Reason for IT Support:",
         font=("Arial", 13, "bold"),
         bg="#F4F6F8",
-        fg="#1F2937"
+        fg="#1F2937",
     )
 
     problem_label.pack(pady=(25, 5))
 
-
     # IT support options
 
     support_options = [
-         "Password / Account Issue",
+        "Password / Account Issue",
         "Wi-Fi / Network Issue",
         "Software Issue",
         "Hardware Issue",
         "Printing Issue",
         "Email Issue",
-        "Other"
+        "Other",
     ]
-
 
     selected_problem = tk.StringVar()
 
     selected_problem.set("Select an issue")
 
+    problem_menu = tk.OptionMenu(client_window, selected_problem, *support_options)
 
-    problem_menu = tk.OptionMenu(
-        client_window,
-        selected_problem,
-        *support_options
-    )
-
-    problem_menu.config(
-        font=("Arial", 12),
-        width=25
-    )
+    problem_menu.config(font=("Arial", 12), width=25)
 
     problem_menu.pack(pady=5)
 
-        # Notify this client when the admin serves them
+    # Notify this client when the admin serves them
     def notify_client():
         nonlocal current_client
 
@@ -153,20 +139,18 @@ def open_client_screen():
 
         messagebox.showinfo(
             "Your Turn",
-            f"{name}, it is now your turn!\n"
-            "Please go to the IT help desk.",
-            parent=client_window
+            f"{name}, it is now your turn!\n" "Please go to the IT help desk.",
+            parent=client_window,
         )
 
         # Join Queue function
+
     def join_queue():
         nonlocal current_client
 
         if current_client is not None:
             messagebox.showwarning(
-                "Already Joined",
-                "You are already in the queue.",
-                parent=client_window
+                "Already Joined", "You are already in the queue.", parent=client_window
             )
             return
 
@@ -175,9 +159,7 @@ def open_client_screen():
 
         if not name:
             messagebox.showwarning(
-                "Missing Name",
-                "Please enter your name.",
-                parent=client_window
+                "Missing Name", "Please enter your name.", parent=client_window
             )
             return
 
@@ -185,21 +167,14 @@ def open_client_screen():
             messagebox.showwarning(
                 "Missing Issue",
                 "Please select an IT support issue.",
-                parent=client_window
+                parent=client_window,
             )
             return
 
         try:
-            client = api_request(
-                "/join",
-                {"name": name, "issue": issue}
-            )
+            client = api_request("/join", {"name": name, "issue": issue})
         except RuntimeError as error:
-            messagebox.showerror(
-                "Could Not Join",
-                str(error),
-                parent=client_window
-            )
+            messagebox.showerror("Could Not Join", str(error), parent=client_window)
             return
 
         current_client = client
@@ -211,13 +186,14 @@ def open_client_screen():
             f"IT Support Issue: {client['issue']}\n"
             f"Position: {client['position']}\n"
             f"People ahead: {client['people_ahead']}",
-            parent=client_window
+            parent=client_window,
         )
 
         name_entry.delete(0, tk.END)
         selected_problem.set("Select an issue")
 
-            # Check whether this client has been served
+        # Check whether this client has been served
+
     def check_client_status():
         if not client_window.winfo_exists():
             return
@@ -227,9 +203,7 @@ def open_client_screen():
                 client_id = current_client["id"]
 
                 try:
-                    response = api_request(
-                        f"/status/{client_id}"
-                    )
+                    response = api_request(f"/status/{client_id}")
                 except RuntimeError:
                     # Try again later if the server is unavailable.
                     return
@@ -243,6 +217,7 @@ def open_client_screen():
                 client_window.after(2000, check_client_status)
 
         # Leave Queue function
+
     def leave_queue():
         nonlocal current_client
 
@@ -250,21 +225,14 @@ def open_client_screen():
             messagebox.showwarning(
                 "Not in Queue",
                 "You are not currently in the queue.",
-                parent=client_window
+                parent=client_window,
             )
             return
 
         try:
-            response = api_request(
-                "/leave",
-                {"id": current_client["id"]}
-            )
+            response = api_request("/leave", {"id": current_client["id"]})
         except RuntimeError as error:
-            messagebox.showerror(
-                "Could Not Leave",
-                str(error),
-                parent=client_window
-            )
+            messagebox.showerror("Could Not Leave", str(error), parent=client_window)
             return
 
         current_client = None
@@ -273,9 +241,9 @@ def open_client_screen():
         messagebox.showinfo(
             "Left Queue",
             f"{response['name']}, you have left the queue.",
-            parent=client_window
+            parent=client_window,
         )
-        
+
     # Join Queue button
     join_button = tk.Button(
         client_window,
@@ -283,7 +251,7 @@ def open_client_screen():
         font=("Arial", 14, "bold"),
         width=20,
         height=2,
-        command=join_queue
+        command=join_queue,
     )
     join_button.pack(pady=(20, 10))
 
@@ -294,27 +262,22 @@ def open_client_screen():
         font=("Arial", 14, "bold"),
         width=20,
         height=2,
-        command=leave_queue
+        command=leave_queue,
     )
     leave_button.pack(pady=(0, 20))
-        # Current queue heading
+    # Current queue heading
     queue_title = tk.Label(
         client_window,
         text="Current Queue",
         font=("Arial", 16, "bold"),
         bg="#F4F6F8",
-        fg="#1F2937"
+        fg="#1F2937",
     )
     queue_title.pack(pady=(0, 10))
 
     # Frame containing the queue and scrollbar
     queue_frame = tk.Frame(client_window, bg="#F4F6F8")
-    queue_frame.pack(
-        fill=tk.BOTH,
-        expand=True,
-        padx=30,
-        pady=(0, 25)
-    )
+    queue_frame.pack(fill=tk.BOTH, expand=True, padx=30, pady=(0, 25))
 
     queue_scrollbar = tk.Scrollbar(queue_frame)
     queue_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
@@ -327,21 +290,17 @@ def open_client_screen():
         fg="#1F2937",
         height=6,
         activestyle="none",
-        yscrollcommand=queue_scrollbar.set
+        yscrollcommand=queue_scrollbar.set,
     )
-    queue_display.pack(
-        side=tk.LEFT,
-        fill=tk.BOTH,
-        expand=True
-    )
+    queue_display.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
     queue_scrollbar.config(command=queue_display.yview)
 
     # Register this window and show the existing queue
     queue_displays.append(queue_display)
-    refresh_queue_displays()                                                       
+    refresh_queue_displays()
 
-        # Remove this client and display when the window closes
+    # Remove this client and display when the window closes
     def remove_queue_display(event):
         nonlocal current_client
 
@@ -353,10 +312,7 @@ def open_client_screen():
 
         if current_client is not None:
             try:
-                api_request(
-                    "/leave",
-                    {"id": current_client["id"]}
-                )
+                api_request("/leave", {"id": current_client["id"]})
             except RuntimeError as error:
                 print(f"Could not remove closed client: {error}")
 
@@ -365,17 +321,15 @@ def open_client_screen():
         if queue_displays:
             refresh_queue_displays()
 
-    client_window.bind(
-        "<Destroy>",
-        remove_queue_display,
-        add="+"
-    )
+    client_window.bind("<Destroy>", remove_queue_display, add="+")
 
     client_window.after(2000, check_client_status)
-   
+
+
 # ----------------------------
 # ADMIN SCREEN
 # ----------------------------
+
 
 def open_admin_screen():
     admin_window = tk.Toplevel(root)
@@ -388,17 +342,12 @@ def open_admin_screen():
         text="Manage IT Support Queue",
         font=("Arial", 26, "bold"),
         bg="#F4F6F8",
-        fg="#1F2937"
+        fg="#1F2937",
     )
     admin_title.pack(pady=30)
 
     queue_frame = tk.Frame(admin_window, bg="#F4F6F8")
-    queue_frame.pack(
-        fill=tk.BOTH,
-        expand=True,
-        padx=30,
-        pady=10
-    )
+    queue_frame.pack(fill=tk.BOTH, expand=True, padx=30, pady=10)
 
     scrollbar = tk.Scrollbar(queue_frame)
     scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
@@ -409,13 +358,9 @@ def open_admin_screen():
         bg="white",
         fg="#1F2937",
         activestyle="none",
-        yscrollcommand=scrollbar.set
+        yscrollcommand=scrollbar.set,
     )
-    queue_display.pack(
-        side=tk.LEFT,
-        fill=tk.BOTH,
-        expand=True
-    )
+    queue_display.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
     scrollbar.config(command=queue_display.yview)
 
@@ -426,20 +371,15 @@ def open_admin_screen():
         try:
             client = api_request("/serve", {})
         except RuntimeError as error:
-            messagebox.showerror(
-                "Could Not Serve",
-                str(error),
-                parent=admin_window
-            )
+            messagebox.showerror("Could Not Serve", str(error), parent=admin_window)
             return
 
         refresh_queue_displays()
 
         messagebox.showinfo(
             "Client Called",
-            f"{client['name']} has been called.\n"
-            f"Issue: {client['issue']}",
-            parent=admin_window
+            f"{client['name']} has been called.\n" f"Issue: {client['issue']}",
+            parent=admin_window,
         )
 
     serve_button = tk.Button(
@@ -448,7 +388,7 @@ def open_admin_screen():
         font=("Arial", 14, "bold"),
         width=20,
         height=2,
-        command=serve_next
+        command=serve_next,
     )
     serve_button.pack(pady=25)
 
@@ -457,11 +397,8 @@ def open_admin_screen():
             if queue_display in queue_displays:
                 queue_displays.remove(queue_display)
 
-    admin_window.bind(
-        "<Destroy>",
-        remove_admin_display,
-        add="+"
-    )
+    admin_window.bind("<Destroy>", remove_admin_display, add="+")
+
 
 # MAIN WINDOW
 
@@ -483,7 +420,7 @@ title_label = tk.Label(
     text="Customer Queuing System",
     font=("Arial", 28, "bold"),
     bg="#F4F6F8",
-    fg="#1F2937"
+    fg="#1F2937",
 )
 
 
@@ -494,7 +431,7 @@ description_label = tk.Label(
     text="An easy way to queue fast.",
     font=("Arial", 16),
     bg="#F4F6F8",
-    fg="#6B7280"
+    fg="#6B7280",
 )
 
 description_label.pack(pady=5)
@@ -509,11 +446,10 @@ client_button = tk.Button(
     font=("Arial", 16, "bold"),
     width=20,
     height=2,
-    command=open_client_screen
+    command=open_client_screen,
 )
 
 client_button.pack(pady=30)
-
 
 
 # ----------------------------
@@ -526,7 +462,7 @@ admin_button = tk.Button(
     font=("Arial", 16, "bold"),
     width=20,
     height=2,
-    command=open_admin_screen
+    command=open_admin_screen,
 )
 
 admin_button.pack(pady=10)
@@ -538,4 +474,3 @@ admin_button.pack(pady=10)
 # ----------------------------
 
 root.mainloop()
-

@@ -1,242 +1,263 @@
+import argparse
 import json
+import os
+import secrets
+import webbrowser
+from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from threading import Lock
-from uuid import uuid4
-
-
-# Shared queue data
-queue = []
-queue_lock = Lock()
-
-client_statuses = {}
-
-support_options = [
-    "Password / Account Issue",
-    "Wi-Fi / Network Issue",
-    "Software Issue",
-    "Hardware Issue",
-    "Printing Issue",
-    "Email Issue",
-    "Other"
-]
+from pathlib import Path
+from threading import Timer
+from urllib.parse import urlsplit
+import accounts
 
 
 class QueueRequestHandler(BaseHTTPRequestHandler):
+    def handle(self):
+        try:
+            super().handle()
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            # A closed tab or temporary disconnect needs no error response.
+            pass
 
-    def send_json(self, data, status=200):
-        response = json.dumps(data).encode("utf-8")
+    def log_message(self, format, *args):
+        # Do not log request bodies or verification/reset tokens.
+        pass
 
+    def headers_common(self):
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header(
+            "Content-Security-Policy",
+            "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'",
+        )
+
+    def send_json(self, data, status=200, cookie=None):
+        payload = json.dumps(data).encode()
         self.send_response(status)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(response)))
+        self.headers_common()
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(payload)))
+        if cookie:
+            self.send_header("Set-Cookie", cookie)
         self.end_headers()
-        self.wfile.write(response)
+        self.wfile.write(payload)
 
-    # Return the current queue
+    def token(self):
+        cookie = SimpleCookie()
+        try:
+            cookie.load(self.headers.get("Cookie", ""))
+        except Exception:
+            return None
+        return cookie["queue_session"].value if "queue_session" in cookie else None
+
+    def cookie(self, token, clear=False):
+        secure = "; Secure" if accounts.BASE_URL.startswith("https://") else ""
+        return f"queue_session={token}; Path=/; HttpOnly; SameSite=Lax; Max-Age={0 if clear else 43200}{secure}"
+
+    def send_page(self, filename, content_type):
+        payload = (Path(__file__).parent / "web" / filename).read_bytes()
+        self.send_response(200)
+        self.headers_common()
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
+
     def do_GET(self):
-        if self.path == "/queue":
-            with queue_lock:
-                clients = [
+        try:
+            path = urlsplit(self.path).path
+            pages = {
+                "/": "index.html",
+                "/admin": "index.html",
+                "/verify": "index.html",
+                "/reset": "index.html",
+                "/style.css": "style.css",
+                "/app.js": "app.js",
+            }
+            if path in pages:
+                kind = (
+                    "text/css"
+                    if path.endswith(".css")
+                    else "text/javascript" if path.endswith(".js") else "text/html"
+                )
+                self.send_page(pages[path], kind + "; charset=utf-8")
+                return
+            if path == "/health":
+                with accounts.connect() as db:
+                    db.execute("SELECT 1").fetchone()
+                self.send_json({"status": "ok"})
+                return
+            user = accounts.session(self.token())
+            if path == "/auth/me":
+                self.send_json(
                     {
-                        "name": client["name"],
-                        "issue": client["issue"],
-                        "position": position,
-                        "people_ahead": position - 1
+                        "user": accounts.public_user(user) if user else None,
+                        "csrf": user["csrf"] if user else None,
+                        "development_mail": os.environ.get("QUEUE_EMAIL_MODE")
+                        == "file",
                     }
-                    for position, client in enumerate(queue, start=1)
-                ]
-
-            self.send_json({"queue": clients})
-        
-        elif self.path.startswith("/status/"):
-            client_id = self.path[len("/status/"):]
-
-            with queue_lock:
-                status = client_statuses.get(client_id)
-                position = None
-
-                if status == "waiting":
-                    for index, client in enumerate(queue):
-                        if client["id"] == client_id:
-                            position = index + 1
-                            break
-
-            if status is None:
-                self.send_json(
-                    {"error": "Client not found"},
-                    status=404
-                )
-            else:
-                self.send_json({
-                    "id": client_id,
-                    "status": status,
-                    "position": position,
-                    "people_ahead": (
-                        position - 1 if position is not None else None
-                    )
-                })
-
-        else:
-            self.send_json(
-                {"error": "Page not found"},
-                status=404
-            )
-
-    # Add a client to the queue
-    def do_POST(self):
-        if self.path not in ("/join", "/leave", "/serve"):
-            self.send_json(
-                {"error": "Page not found"},
-                status=404
-            )
-            return
-
-        try:
-            content_length = int(
-                self.headers.get("Content-Length", "0")
-            )
-        except ValueError:
-            self.send_json(
-                {"error": "Invalid request length"},
-                status=400
-            )
-            return
-
-        if not 0 < content_length <= 4096:
-            self.send_json(
-                {"error": "Invalid request size"},
-                status=400
-            )
-            return
-
-        try:
-            data = json.loads(self.rfile.read(content_length))
-        except (json.JSONDecodeError, UnicodeDecodeError):
-            self.send_json(
-                {"error": "Invalid JSON"},
-                status=400
-            )
-            return
-
-        if not isinstance(data, dict):
-            self.send_json(
-                {"error": "Expected a JSON object"},
-                status=400
-            )
-            return
-
-
-
-        # Serve Next
-        if self.path == "/serve":
-            with queue_lock:
-                if queue:
-                    client = queue.pop(0)
-                    client_statuses[client["id"]] = "served"
-                else:
-                    client = None
-
-            if client is None:
-                self.send_json(
-                    {"error": "There is nobody waiting"},
-                    status=409
-                )
-            else:
-                self.send_json({
-                    "message": "Client called",
-                    "id": client["id"],
-                    "name": client["name"],
-                    "issue": client["issue"]
-                })
-
-            return
-
-        # Leave Queue
-        if self.path == "/leave":
-            client_id = data.get("id")
-
-            if not isinstance(client_id, str) or not client_id.strip():
-                self.send_json(
-                    {"error": "Please provide a client ID"},
-                    status=400
                 )
                 return
-
-            removed_client = None
-
-            with queue_lock:
-                for index, client in enumerate(queue):
-                    if client["id"] == client_id:
-                        removed_client = queue.pop(index)
-                        client_statuses[client["id"]] = "left"
-                        break
-
-
-            if removed_client is None:
-                self.send_json(
-                    {"error": "Client not found in queue"},
-                    status=404
-                )
+            if path == "/queue":
+                result = accounts.queue_list(user)
+            elif path == "/my-ticket":
+                result = accounts.own_ticket(user)
+            elif path.startswith("/status/"):
+                result = accounts.status(user, path[len("/status/") :])
             else:
-                self.send_json({
-                    "message": "You have left the queue",
-                    "name": removed_client["name"]
-                })
+                raise accounts.AppError("Page not found.", 404)
+            self.send_json(result)
+        except accounts.AppError as error:
+            self.send_json({"error": str(error)}, error.status)
 
-            return
-
-        name = data.get("name")
-        issue = data.get("issue")
-
-        if not isinstance(name, str) or not name.strip():
+    def do_POST(self):
+        try:
+            path = urlsplit(self.path).path
+            # All writes require same-origin JSON requests.
+            origin = self.headers.get("Origin")
+            configured = urlsplit(accounts.BASE_URL)
+            allowed = {
+                configured.scheme + "://" + configured.netloc,
+                "http://" + self.headers.get("Host", ""),
+            }
+            if origin and origin not in allowed:
+                raise accounts.AppError("Request origin is not allowed.", 403)
+            if self.headers.get("Sec-Fetch-Site") == "cross-site":
+                raise accounts.AppError("Cross-site request blocked.", 403)
+            if (
+                self.headers.get("Content-Type", "").split(";")[0].strip()
+                != "application/json"
+            ):
+                raise accounts.AppError("Send JSON requests.", 415)
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+            except ValueError:
+                raise accounts.AppError("Invalid request size.")
+            if not 0 < length <= 8192:
+                raise accounts.AppError("Invalid request size.")
+            try:
+                data = json.loads(self.rfile.read(length))
+            except (ValueError, UnicodeError):
+                raise accounts.AppError("Invalid JSON.")
+            if not isinstance(data, dict):
+                raise accounts.AppError("Expected a JSON object.")
+            user = accounts.session(self.token())
+            if path.startswith("/auth/"):
+                accounts.limited(self.client_address[0] + ":" + path, maximum=30)
+                if path in (
+                    "/auth/login",
+                    "/auth/register",
+                    "/auth/resend",
+                    "/auth/forgot",
+                ):
+                    address = data.get("email", "")
+                    if isinstance(address, str):
+                        accounts.limited(
+                            path + ":" + address.strip().lower(), maximum=8
+                        )
+                if path == "/auth/register":
+                    result = accounts.register(data)
+                elif path == "/auth/login":
+                    result, token = accounts.login(data)
+                    self.send_json(result, cookie=self.cookie(token))
+                    return
+                elif path == "/auth/verify":
+                    result = accounts.consume_link(data, "verify")
+                elif path == "/auth/reset":
+                    result = accounts.consume_link(data, "reset")
+                elif path == "/auth/resend":
+                    result = accounts.request_link(data, "verify")
+                elif path == "/auth/forgot":
+                    result = accounts.request_link(data, "reset")
+                elif path == "/auth/logout":
+                    accounts.require_user(user)
+                    self.check_csrf(user)
+                    with accounts.connect() as db:
+                        db.execute(
+                            "DELETE FROM sessions WHERE hash=?",
+                            (accounts.digest(self.token()),),
+                        )
+                    self.send_json(
+                        {"message": "Signed out"}, cookie=self.cookie("", True)
+                    )
+                    return
+                else:
+                    raise accounts.AppError("Page not found.", 404)
+            elif path in ("/join", "/leave", "/serve", "/acknowledge"):
+                accounts.require_user(user)
+                self.check_csrf(user)
+                result = accounts.queue_action(user, path, data)
+            else:
+                raise accounts.AppError("Page not found.", 404)
+            self.send_json(result, 201 if path in ("/join", "/auth/register") else 200)
+        except accounts.AppError as error:
+            self.send_json({"error": str(error)}, error.status)
+        except Exception:
             self.send_json(
-                {"error": "Please enter your name"},
-                status=400
+                {"error": "The request could not be completed. Please try again."}, 500
             )
-            return
 
-        if not isinstance(issue, str) or issue not in support_options:
-            self.send_json(
-                {"error": "Please select an IT support issue"},
-                status=400
-            )
-            return
+    def check_csrf(self, user):
+        if not secrets.compare_digest(
+            self.headers.get("X-CSRF-Token", ""), user["csrf"]
+        ):
+            raise accounts.AppError("Please refresh the page and try again.", 403)
 
-        client = {
-            "id": str(uuid4()),
-            "name": name.strip(),
-            "issue": issue
-        }
 
-        with queue_lock:
-            queue.append(client)
-            client_statuses[client["id"]] = "waiting"
-            position = len(queue)
-
-        self.send_json(
-            {
-                "id": client["id"],
-                "name": client["name"],
-                "issue": client["issue"],
-                "position": position,
-                "people_ahead": position - 1
-            },
-            status=201
-        )
+def open_browser_pages():
+    for path in ("/", "/admin"):
+        webbrowser.open_new_tab(accounts.BASE_URL + path)
 
 
 if __name__ == "__main__":
-    server = ThreadingHTTPServer(
-        ("127.0.0.1", 8000),
-        QueueRequestHandler
+    parser = argparse.ArgumentParser(description="Verified-account IT queue server")
+    parser.add_argument(
+        "--make-admin",
+        metavar="EMAIL",
+        help="Grant admin to an already verified account",
     )
-
-    print("Queue server running at http://127.0.0.1:8000/queue")
-    print("Press Ctrl+C to stop.")
-
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        print("\nStopping the server.")
-    finally:
-        server.server_close()
+    parser.add_argument("--no-browser", action="store_true")
+    args = parser.parse_args()
+    accounts.initialize()
+    if args.make_admin:
+        try:
+            accounts.set_admin(args.make_admin)
+            print("Admin access assigned. Sign in again to use it.")
+        except accounts.AppError as error:
+            parser.error(str(error))
+    else:
+        bind = os.environ.get("QUEUE_HOST", "127.0.0.1")
+        port = int(os.environ.get("QUEUE_PORT", os.environ.get("PORT", "8000")))
+        if not accounts.BASE_URL.startswith("https://") and bind not in (
+            "127.0.0.1",
+            "localhost",
+        ):
+            parser.error(
+                "Account sign-in requires HTTPS outside local testing. Set QUEUE_BASE_URL to your HTTPS site URL."
+            )
+        server = ThreadingHTTPServer((bind, port), QueueRequestHandler)
+        print("Client: " + accounts.BASE_URL + "/")
+        print("Admin: " + accounts.BASE_URL + "/admin")
+        print(
+            "Email mode: "
+            + (
+                "local development files (no emails sent)"
+                if os.environ.get("QUEUE_EMAIL_MODE") == "file"
+                else "SMTP"
+            )
+        )
+        timer = None
+        if not args.no_browser:
+            timer = Timer(0.5, open_browser_pages)
+            timer.daemon = True
+            timer.start()
+        try:
+            server.serve_forever()
+        except KeyboardInterrupt:
+            pass
+        finally:
+            if timer:
+                timer.cancel()
+            server.server_close()
