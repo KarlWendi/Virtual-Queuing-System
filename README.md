@@ -70,3 +70,7 @@ For real email testing with a Gmail account, run `python start_gmail.py` and fol
 ## Hosted deployment
 
 A Python-compatible HTTPS deployment is prepared in `render.yaml`. It requires paid hosting and a persistent disk to keep Gmail SMTP and SQLite. See [DEPLOYMENT.md](DEPLOYMENT.md). No public deployment has been created yet.
+
+## Free hosting option
+
+PythonAnywhere deployment files are prepared; see [PYTHONANYWHERE.md](PYTHONANYWHERE.md). This is the selected free prototype route. The paid Render configuration is retained only as an optional alternative. No public deployment has been created yet.
