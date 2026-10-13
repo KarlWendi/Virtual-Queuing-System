@@ -1,5 +1,7 @@
 # Free prototype hosting with PythonAnywhere
 
+The live Client app is https://karl213.pythonanywhere.com/ and the Admin page is https://karl213.pythonanywhere.com/admin. The steps below document how to reproduce this deployment.
+
 Use a free account. Do not apply the paid Render blueprint. PythonAnywhere provides one web app and 512 MiB file storage; the web app has a one-month expiry, so use its dashboard to renew before expiry. The support guidance describes Gmail SMTP access for free accounts, but verify it from your actual host before inviting users.
 
 ## Account and source

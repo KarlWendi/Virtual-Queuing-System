@@ -1,76 +1,102 @@
 # Virtual Queuing System
 
-A browser-based IT help desk queue with a Python server. Clients join in order, see their position and people ahead, leave the queue, and receive an in-page notification when called. Admins use a separate page to serve the next person.
+A browser-based IT help desk queue with verified email accounts, first-come ordering, live positions, and a separate administrator screen.
 
-## Run the browser app
+## Live app
 
-Requires Python 3. No third-party packages are needed.
+- **Client:** https://karl213.pythonanywhere.com/
+- **Admin:** https://karl213.pythonanywhere.com/admin
+
+The app is deployed on PythonAnywhere's free plan with Gmail email delivery and persistent SQLite storage. Its free web app must be renewed monthly through the hosting dashboard.
+
+## Features
+
+- Anyone can create an account with an email address and password.
+- Email verification is required before signing in.
+- Verification resend, sign-out, and password reset are available.
+- Clients join with their account name and an IT support issue.
+- The queue shows numbered places and people ahead, updating every two seconds.
+- Each client can have only one waiting entry and can leave only their own entry.
+- Administrators can view support issues and serve the first waiting client.
+- Called clients receive an in-page turn notification.
+- Admin accounts are admin-only: they cannot join the client queue and are redirected to the Admin page.
+- Accounts and queue records survive page refreshes and server restarts.
+
+## Using the app
+
+1. Open the Client link and choose **Create account**.
+2. Follow the verification link in your email, then sign in.
+3. Select an IT support issue and choose **Join Queue**.
+4. Keep the page open for updates and your turn notification.
+5. Choose **Leave Queue** to leave.
+
+Use separate browser profiles or private windows for different test accounts. Tabs in the same browser profile share a sign-in. Closing a tab or signing out keeps a waiting place; signing back in recovers it.
+
+Managers register and verify their email too. Only the hosting-account owner can assign admin access; registration cannot grant it. See [ACCOUNT_SETUP.md](ACCOUNT_SETUP.md).
+
+## Run locally
+
+Requires Python 3.10 or newer with no third-party runtime packages.
 
 ```sh
+git clone https://github.com/KarlWendi/Virtual-Queuing-System.git
+cd Virtual-Queuing-System
 python server.py
 ```
 
-Leave the server running and open:
+The server opens Client and Admin tabs automatically. Leave it running. Local pages are at `http://127.0.0.1:8000/` and `/admin`.
 
-- Client: http://127.0.0.1:8000/
-- Admin: http://127.0.0.1:8000/admin
+Accounts need email configuration. For local development without sending email, set `QUEUE_EMAIL_MODE=file` before starting; private verification messages are saved under `data/dev-mail/`. For real Gmail delivery, run `python start_gmail.py` and enter a Google app password at its hidden prompt. Full instructions are in [ACCOUNT_SETUP.md](ACCOUNT_SETUP.md).
 
-The queue refreshes every two seconds. Use separate browser profiles or private windows for different accounts. A client's place is tied to their account and survives refreshes and server restarts.
+The previous Tkinter files are retained as an archived development stage. They are not compatible with the current authenticated API and are not needed for the browser app.
 
-The account-enabled server defaults to localhost. Remote sign-in requires HTTPS hosting; online hosting is not configured yet.
-
-## Browser behaviour
-
-Click **Leave Queue** to leave. Closing a browser tab keeps the entry in the queue: browsers cannot reliably notify the server when a tab closes. Notifications appear while the client page is open; mobile browsers may delay updates when a page is in the background.
-
-Accounts now require email verification. Admin actions require an assigned admin role. Accounts and queue data persist in SQLite. See [ACCOUNT_SETUP.md](ACCOUNT_SETUP.md) for email setup and local testing.
-
-## Files
+## Project files
 
 | File | Purpose |
 | --- | --- |
-| `server.py` | Browser pages and shared queue HTTP API |
-| `web/index.html` | Client and Admin page structure |
-| `web/style.css` | Responsive layout and styling |
-| `web/app.js` | Joining, leaving, live refresh, and turn notifications |
-| `First Window.py` | Previous Tkinter interface, still available |
-| `queue_api.py` | HTTP helper used by the Tkinter interface |
+| `server.py` | Local HTTP server, browser assets, and authenticated API |
+| `accounts.py` | Account security, email links, sessions, and persistent queue |
+| `web/` | Responsive browser interface |
+| `wsgi_app.py` | PythonAnywhere web-server entry point |
+| `configure_pythonanywhere.py` | Private hosted Gmail configuration |
+| `start_gmail.py` | Local Gmail launcher with hidden credential input |
+| `test_accounts.py` | Account, permission, persistence, and queue checks |
+| `test_email_delivery.py` | Simulated SMTP and credential-handling checks |
+| `test_wsgi.py` | Hosting adapter checks |
+| `browser_checks.py` | Optional real-browser checks using Playwright and installed Edge |
 
-## API
+## Tests
+
+Run the standard-library integration checks:
+
+```sh
+python -m unittest discover -v
+```
+
+Tests use temporary databases and simulated email delivery, leaving real accounts and queue data untouched. `browser_checks.py` additionally needs Playwright and the installed Microsoft Edge browser; it also uses isolated test data.
+
+## Hosting
+
+Follow [PYTHONANYWHERE.md](PYTHONANYWHERE.md) for the selected free hosting setup, Gmail verification, administrator assignment, and monthly renewal. HTTPS is enabled on the live site. Hosted account and email configuration is stored privately in the hosting account.
+
+The optional paid Render configuration remains in `render.yaml`; it is not the active hosting service. See [DEPLOYMENT.md](DEPLOYMENT.md) only if you choose that alternative.
+
+## API overview
 
 | Method | Endpoint | Purpose |
 | --- | --- | --- |
-| GET | `/queue` | Read the queue |
-| GET | `/status/<client-id>` | Read waiting, served, or left status |
-| POST | `/join` | Join with `name` and `issue` |
-| POST | `/leave` | Leave with a client `id` |
-| POST | `/serve` | Serve the first client; send `{}` |
+| GET | `/health` | Health check |
+| GET | `/auth/me` | Current sign-in and CSRF token |
+| POST | `/auth/register`, `/auth/verify` | Create and verify an account |
+| POST | `/auth/login`, `/auth/logout` | Sign in and out |
+| POST | `/auth/resend`, `/auth/forgot`, `/auth/reset` | Verification resend and password recovery |
+| GET | `/queue`, `/my-ticket`, `/status/<client-id>` | Authorized queue and owned ticket details |
+| POST | `/join`, `/leave` | Client queue actions |
+| POST | `/serve` | Admin-only serving |
+| POST | `/acknowledge` | Acknowledge a turn notification |
 
-## Manual test
+Queue writes require an authenticated verified account and a CSRF token. The server controls account roles, queue ownership, and support-issue visibility.
 
-1. Open the client page in two tabs and join as Adam and Sarah.
-2. Open `/admin` and click **Serve Next**.
-3. Adam receives a turn dialog, and Sarah becomes position 1.
-4. Sarah clicks **Leave Queue** and the queue becomes empty.
-5. Refresh a waiting client's tab and confirm their place is retained.
-6. Test the layout on a narrow phone screen.
+## Current limits
 
-## Next stages
-
-- Online hosting with a shared persistent queue.
-- Configure a production email service and HTTPS hosting.
-- Better recovery from interrupted requests.
-
-## Verified accounts
-
-Registration, sign-in, sign-out, verification resend, and password reset are available in the browser. Follow [ACCOUNT_SETUP.md](ACCOUNT_SETUP.md) before testing accounts. Real email delivery still needs provider configuration.
-
-For real email testing with a Gmail account, run `python start_gmail.py` and follow the [Gmail setup instructions](ACCOUNT_SETUP.md#gmail-initial-real-email-testing-without-a-domain). You need a Google app password.
-
-## Hosted deployment
-
-A Python-compatible HTTPS deployment is prepared in `render.yaml`. It requires paid hosting and a persistent disk to keep Gmail SMTP and SQLite. See [DEPLOYMENT.md](DEPLOYMENT.md). No public deployment has been created yet.
-
-## Free hosting option
-
-PythonAnywhere deployment files are prepared; see [PYTHONANYWHERE.md](PYTHONANYWHERE.md). This is the selected free prototype route. The paid Render configuration is retained only as an optional alternative. No public deployment has been created yet.
+The free host is intended for a small prototype and has resource and renewal limits. Notifications require an open page and may be delayed in background mobile tabs. Passwords, mail credentials, user databases, and generated test artifacts are excluded from GitHub. Back up the private hosted database separately.
