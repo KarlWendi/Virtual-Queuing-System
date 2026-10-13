@@ -70,3 +70,5 @@ Run this launcher whenever you want Gmail delivery; running `server.py` alone do
 Google app passwords require 2-Step Verification and are unavailable for some managed or Advanced Protection accounts. If the option is absent, use an eligible personal Gmail account or another mail service; do not use your regular Google password. Google's instructions: https://support.google.com/mail/answer/185833
 
 This is for initial email testing. Links use localhost and can be opened on the server computer only. Deploy with an HTTPS site URL before inviting people on other devices. A dedicated transactional provider is the planned route for the hosted app.
+
+Administrator accounts are admin-only: assigning the admin role removes an existing waiting entry and prevents client joins. Signing in at the Client page redirects administrators to `/admin`. The verified login account is retained.

@@ -171,6 +171,38 @@ class AccountsTest(unittest.TestCase):
         current = accounts.own_ticket(user)["client"]
         accounts.queue_action(user, "/leave", {"id": current["id"]})
 
+    def test_admin_accounts_leave_client_queue_and_cannot_rejoin(self):
+        user = {
+            "id": "promoted-user",
+            "name": "Manager",
+            "verified": 1,
+            "role": "client",
+        }
+        with accounts.connect() as db:
+            db.execute(
+                "INSERT INTO users(id,email,name,password,verified) VALUES(?,?,?,?,1)",
+                (
+                    user["id"],
+                    "manager@example.test",
+                    user["name"],
+                    accounts.password_hash("Long test password 123"),
+                ),
+            )
+        entry = accounts.queue_action(user, "/join", {"issue": "Software Issue"})
+        accounts.set_admin("manager@example.test")
+        user["role"] = "admin"
+        self.assertEqual(accounts.status(user, entry["id"])["status"], "left")
+        self.assertIsNone(accounts.own_ticket(user)["client"])
+        with self.assertRaises(accounts.AppError) as error:
+            accounts.queue_action(user, "/join", {"issue": "Software Issue"})
+        self.assertEqual(error.exception.status, 403)
+        with accounts.connect() as db:
+            row = db.execute(
+                "SELECT verified,role FROM users WHERE id=?", (user["id"],)
+            ).fetchone()
+        self.assertEqual(row["verified"], 1)
+        self.assertEqual(row["role"], "admin")
+
     def test_full_flow_and_access_boundaries(self):
         adam, sarah, admin, guest = [self.browser() for _ in range(4)]
         self.assertEqual(self.request(guest, "/health")[1], {"status": "ok"})

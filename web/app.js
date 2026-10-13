@@ -52,7 +52,7 @@ function render() {
   $("account-panel").hidden = access;
   $("queue-panel").hidden = !access;
   $("sign-out").hidden = !user;
-  $("join-form").hidden = admin || !!client;
+  $("join-form").hidden = admin || user?.role === "admin" || !!client;
   $("ticket").hidden = admin || !client;
   $("admin-controls").hidden = !admin;
   $("panel-title").textContent = admin
@@ -148,6 +148,10 @@ async function refresh() {
     $("empty").textContent = "Sign in to view the queue.";
     $("connection").textContent = "Account access required";
     render();
+    return;
+  }
+  if (user.role === "admin" && !admin && !linkPage) {
+    location.replace("/admin");
     return;
   }
   if (admin && user.role !== "admin") {

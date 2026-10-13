@@ -397,6 +397,10 @@ def status(user, entry_id):
 
 def queue_action(user, path, data):
     require_user(user, admin=path == "/serve")
+    if path == "/join" and user["role"] == "admin":
+        raise AppError(
+            "Administrator accounts manage the queue and cannot join as clients.", 403
+        )
     with connect() as db:
         db.execute("BEGIN IMMEDIATE")
         if path == "/join":
@@ -457,4 +461,12 @@ def set_admin(email):
         if not row or not row["verified"]:
             raise AppError("Register and verify this account first.")
         db.execute("UPDATE users SET role='admin' WHERE id=?", (row["id"],))
+        db.execute(
+            "UPDATE entries SET status='left', notified=1 WHERE user_id=? AND status='waiting'",
+            (row["id"],),
+        )
+        db.execute(
+            "UPDATE entries SET notified=1 WHERE user_id=? AND status='served'",
+            (row["id"],),
+        )
         db.execute("DELETE FROM sessions WHERE user_id=?", (row["id"],))
