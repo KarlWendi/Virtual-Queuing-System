@@ -18,6 +18,25 @@ function message(text, error = false) {
   $("message").textContent = text;
   $("message").className = error ? "error" : "";
 }
+
+function playTurnSound() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+    osc.frequency.setValueAtTime(880, ctx.currentTime + 0.15);
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.6);
+  } catch (e) {
+    // Ignore audio context errors if blocked by browser policy
+  }
+}
 // SERVER REQUESTS
 
 async function api(path, data) {
@@ -130,9 +149,45 @@ function renderQueue(clients) {
     issue.textContent = item.issue;
     ahead.className = "ahead";
     ahead.textContent = `${item.people_ahead} ahead`;
+
+    if (user && user.role === "admin") {
+      const cancelBtn = document.createElement("button");
+      cancelBtn.className = "cancel-button";
+      cancelBtn.textContent = "Cancel";
+      cancelBtn.type = "button";
+      cancelBtn.addEventListener("click", () => {
+        action(async () => {
+          const res = await api("/cancel", { id: item.id });
+          message(res.message);
+          await refresh();
+        });
+      });
+      ahead.append(cancelBtn);
+    }
+
     person.append(name, issue);
     row.append(num, person, ahead);
     $("queue").append(row);
+  }
+}
+
+function renderHistory(history) {
+  const section = $("history-section");
+  if (!section) return;
+  section.hidden = !(user && user.role === "admin");
+  const list = $("history-list");
+  const empty = $("history-empty");
+  if (!list) return;
+  list.replaceChildren();
+  empty.hidden = !!history.length;
+  for (const item of history) {
+    const li = document.createElement("li");
+    const name = document.createElement("strong");
+    name.textContent = item.name;
+    const issue = document.createElement("span");
+    issue.textContent = `— ${item.issue}`;
+    li.append(name, issue);
+    list.append(li);
   }
 }
 async function refresh() {
@@ -170,11 +225,25 @@ async function refresh() {
       $("turn-title").textContent = `${client.name}, it is now your turn!`;
       notice = client.id;
       client = null;
+      document.title = "🔔 YOUR TURN! - IT Help Desk";
+      playTurnSound();
       if (!$("turn-dialog").open) $("turn-dialog").showModal();
     } else if (client) {
+      document.title = "IT Help Desk Queue";
       $("position").textContent = client.position;
       $("ahead").textContent = client.people_ahead;
+      $("wait-time").textContent =
+        client.estimated_wait_minutes === 0
+          ? "Now"
+          : client.estimated_wait_minutes !== null
+            ? `~${client.estimated_wait_minutes} min`
+            : "—";
     }
+  } else if (user && user.role === "admin") {
+    const historyRes = await api("/history");
+    renderHistory(historyRes.history);
+  } else {
+    renderHistory([]);
   }
   render();
   $("connection").textContent = "Live · updates every 2 seconds";
@@ -284,6 +353,7 @@ async function acknowledge() {
 }
 $("dismiss-turn").addEventListener("click", () =>
   action(async () => {
+    document.title = "IT Help Desk Queue";
     await acknowledge();
     $("turn-dialog").close();
   }),

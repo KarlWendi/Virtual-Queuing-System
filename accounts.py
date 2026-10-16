@@ -366,14 +366,36 @@ def ticket(row, db):
         if row["status"] == "waiting"
         else None
     )
+    people_ahead = position - 1 if position else None
     return {
         "id": row["id"],
         "name": row["name"],
         "issue": row["issue"],
         "status": row["status"],
         "position": position,
-        "people_ahead": position - 1 if position else None,
+        "people_ahead": people_ahead,
+        "estimated_wait_minutes": people_ahead * 5 if people_ahead is not None else None,
     }
+
+
+def served_history(user, limit=10):
+    require_user(user, admin=True)
+    with connect() as db:
+        rows = db.execute(
+            "SELECT id, name, issue, status, seq FROM entries WHERE status='served' ORDER BY seq DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+        return {
+            "history": [
+                {
+                    "id": r["id"],
+                    "name": r["name"],
+                    "issue": r["issue"],
+                    "status": r["status"],
+                }
+                for r in rows
+            ]
+        }
 
 
 def own_ticket(user):
@@ -396,7 +418,7 @@ def status(user, entry_id):
 
 
 def queue_action(user, path, data):
-    require_user(user, admin=path == "/serve")
+    require_user(user, admin=path in ("/serve", "/cancel"))
     if path == "/join" and user["role"] == "admin":
         raise AppError(
             "Administrator accounts manage the queue and cannot join as clients.", 403
@@ -437,6 +459,19 @@ def queue_action(user, path, data):
                 "issue": row["issue"],
                 "message": "Client called",
             }
+        if path == "/cancel":
+            entry_id = data.get("id")
+            if not isinstance(entry_id, str):
+                raise AppError("Provide a client ID.")
+            row = db.execute(
+                "SELECT * FROM entries WHERE id=?", (entry_id,)
+            ).fetchone()
+            if not row:
+                raise AppError("Client not found.", 404)
+            if row["status"] != "waiting":
+                raise AppError("Client is not waiting in the queue.", 409)
+            db.execute("UPDATE entries SET status='cancelled' WHERE id=?", (entry_id,))
+            return {"name": row["name"], "message": f"Cancelled entry for {row['name']}"}
         entry_id = data.get("id")
         if not isinstance(entry_id, str):
             raise AppError("Provide a client ID.")

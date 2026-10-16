@@ -180,8 +180,9 @@ li {
 }
 .stats {
   display: flex;
-  gap: 36px;
+  gap: 24px;
   margin: 25px 0;
+  flex-wrap: wrap;
 }
 .stats strong,
 .stats span {
@@ -250,6 +251,38 @@ dialog::backdrop {
   flex-wrap: wrap;
   gap: 10px;
   margin-top: 18px;
+}
+.divider {
+  border: 0;
+  border-top: 1px solid #edf0f4;
+  margin: 28px 0 20px;
+}
+.history-list {
+  padding: 0;
+  list-style: none;
+  margin: 12px 0 0;
+}
+.history-list li {
+  padding: 10px 0;
+  border-bottom: 1px dashed #e5e9f0;
+  font-size: 14px;
+}
+.history-list li strong {
+  display: inline-block;
+  margin-right: 8px;
+}
+.cancel-button {
+  width: auto;
+  padding: 4px 10px;
+  margin: 0 0 0 12px;
+  background: #fee2e2;
+  color: #991b1b;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 6px;
+}
+.cancel-button:hover {
+  background: #fca5a5;
 }
 .auth-links button,
 .nav-button {

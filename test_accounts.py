@@ -203,6 +203,52 @@ class AccountsTest(unittest.TestCase):
         self.assertEqual(row["verified"], 1)
         self.assertEqual(row["role"], "admin")
 
+    def test_history_cancel_and_wait_times(self):
+        user1, user2, admin = [self.browser() for _ in range(3)]
+        for b, email, name in [
+            (user1, "u1@example.test", "User One"),
+            (user2, "u2@example.test", "User Two"),
+            (admin, "admin_hc@example.test", "Admin HC"),
+        ]:
+            token = self.register(b, email, name)
+            self.assertEqual(self.request(b, "/auth/verify", {"token": token})[0], 200)
+        accounts.set_admin("admin_hc@example.test")
+        u1_csrf = self.login(user1, "u1@example.test")
+        u2_csrf = self.login(user2, "u2@example.test")
+        admin_csrf = self.login(admin, "admin_hc@example.test")
+
+        # Non-admin cannot view history or cancel
+        self.assertEqual(self.request(user1, "/history")[0], 403)
+        self.assertEqual(self.request(user1, "/cancel", {"id": "dummy"}, u1_csrf)[0], 403)
+
+        # Users join queue
+        _, t1, _ = self.request(user1, "/join", {"issue": "Software Issue"}, u1_csrf)
+        _, t2, _ = self.request(user2, "/join", {"issue": "Hardware Issue"}, u2_csrf)
+
+        # Check estimated wait minutes calculation
+        self.assertEqual(t1["people_ahead"], 0)
+        self.assertEqual(t1["estimated_wait_minutes"], 0)
+        self.assertEqual(t2["people_ahead"], 1)
+        self.assertEqual(t2["estimated_wait_minutes"], 5)
+
+        # Admin serves first user
+        code, served, _ = self.request(admin, "/serve", {}, admin_csrf)
+        self.assertEqual(code, 200)
+        self.assertEqual(served["id"], t1["id"])
+
+        # History shows served user
+        code, hist, _ = self.request(admin, "/history")
+        self.assertEqual(code, 200)
+        self.assertTrue(any(item["id"] == t1["id"] for item in hist["history"]))
+
+        # Admin cancels second user
+        code, cancel_res, _ = self.request(admin, "/cancel", {"id": t2["id"]}, admin_csrf)
+        self.assertEqual(code, 200)
+        self.assertIn("Cancelled", cancel_res["message"])
+
+        # Queue is now empty
+        self.assertEqual(len(self.request(admin, "/queue")[1]["queue"]), 0)
+
     def test_full_flow_and_access_boundaries(self):
         adam, sarah, admin, guest = [self.browser() for _ in range(4)]
         self.assertEqual(self.request(guest, "/health")[1], {"status": "ok"})
