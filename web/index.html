@@ -104,6 +104,9 @@
                 <div>
                   <strong id="ahead">—</strong><span>People ahead</span>
                 </div>
+                <div>
+                  <strong id="wait-time">—</strong><span>Est. wait</span>
+                </div>
               </div>
               <p>Keep this page open to receive your turn notification.</p>
               <button id="leave-button" class="secondary">Leave Queue</button>
@@ -132,6 +135,14 @@
           <p id="empty" class="empty">
             No one is waiting. You’re welcome to join.
           </p>
+          <div id="history-section" hidden>
+            <hr class="divider" />
+            <div class="queue-heading">
+              <h2>Recently served</h2>
+            </div>
+            <ul id="history-list" class="history-list"></ul>
+            <p id="history-empty" class="small">No served history yet.</p>
+          </div>
         </section>
       </div>
       <footer>
