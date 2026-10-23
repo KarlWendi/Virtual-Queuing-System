@@ -63,35 +63,41 @@ function render() {
   $("name").value = user ? user.name : "";
   if (client) $("client-name").textContent = client.name;
   const titles = {
-    login: "Sign in",
+    login: admin ? "Admin Sign in" : "Sign in",
     register: "Create your account",
+    claim_admin: "Claim Admin Access",
     forgot: "Reset your password",
     resend: "Verify your email",
     verify: "Confirm your email",
     reset: "Choose a new password",
   };
-  $("auth-title").textContent = titles[mode];
+  $("auth-title").textContent = titles[mode] || "Sign in";
   $("auth-submit").textContent = {
-    login: "Sign in",
+    login: admin ? "Admin Sign in" : "Sign in",
     register: "Create account",
+    claim_admin: "Submit Admin Claim",
     forgot: "Send reset link",
     resend: "Send verification link",
     verify: "Verify email",
     reset: "Save new password",
-  }[mode];
+  }[mode] || "Submit";
   $("auth-description").textContent =
     admin && user && user.role !== "admin"
-      ? "Your account does not have administrator access. Use the Client page, or ask the administrator to assign access."
-      : mode === "register"
-        ? "Anyone can register. We’ll email a link to verify your address. Use a password with at least 12 characters."
-        : mode === "verify"
-          ? "Confirm your email to activate your account."
-          : mode === "reset"
-            ? "Choose a password with at least 12 characters. All existing sign-ins will be ended."
-            : "Sign in to join the queue and keep your place across devices.";
+      ? "Your account does not have administrator access. Use 'Become Admin' below to provide the secret key and set your personal PIN, or ask an administrator."
+      : mode === "claim_admin"
+        ? "Registered and verified users can enter the Admin Secret Key and set a personal 4-8 digit PIN to claim admin status."
+        : mode === "register"
+          ? "Anyone can register. We’ll email a link to verify your address. Use a password with at least 12 characters."
+          : mode === "verify"
+            ? "Confirm your email to activate your account."
+            : mode === "reset"
+              ? "Choose a password with at least 12 characters. All existing sign-ins will be ended."
+              : admin
+                ? "Sign in with your email, password, and personal Admin PIN to access queue management."
+                : "Sign in to join the queue and keep your place across devices.";
   $("auth-name-row").hidden = mode !== "register";
   $("auth-name").required = mode === "register";
-  const emailVisible = !["verify", "reset"].includes(mode);
+  const emailVisible = !["verify", "reset", "claim_admin"].includes(mode);
   $("auth-email").hidden = !emailVisible;
   $("auth-email-label").hidden = !emailVisible;
   $("auth-email").required = emailVisible;
@@ -100,6 +106,16 @@ function render() {
   $("auth-password").required = passwordVisible;
   $("auth-password").autocomplete =
     mode === "login" ? "current-password" : "new-password";
+
+  const pinVisible = (admin && mode === "login") || mode === "claim_admin";
+  $("auth-pin-row").hidden = !pinVisible;
+  $("auth-pin").required = pinVisible;
+
+  const secretVisible = mode === "claim_admin";
+  $("auth-secret-row").hidden = !secretVisible;
+  $("auth-secret").required = secretVisible;
+
+  $("show-claim-admin").hidden = !admin || (user && user.role === "admin");
   for (const id of [
     "auth-submit",
     "join-button",
@@ -202,10 +218,13 @@ $("auth-form").addEventListener("submit", (event) => {
   event.preventDefault();
   action(async () => {
     const email = $("auth-email").value.trim(),
-      password = $("auth-password").value;
+      password = $("auth-password").value,
+      pin = $("auth-pin").value,
+      secret_key = $("auth-secret").value;
     const path = {
       login: "/auth/login",
       register: "/auth/register",
+      claim_admin: "/auth/claim-admin",
       forgot: "/auth/forgot",
       resend: "/auth/resend",
       verify: "/auth/verify",
@@ -218,14 +237,24 @@ $("auth-form").addEventListener("submit", (event) => {
           ? { token: linkToken, password }
           : mode === "register"
             ? { email, password, name: $("auth-name").value.trim() }
-            : { email, password };
+            : mode === "claim_admin"
+              ? { secret_key, pin }
+              : admin
+                ? { email, password, pin }
+                : { email, password };
     const result = await api(path, data);
     $("auth-password").value = "";
+    $("auth-pin").value = "";
+    $("auth-secret").value = "";
     if (mode === "login") {
       user = result.user;
       csrf = result.csrf;
       await refresh();
       message("Signed in.");
+    } else if (mode === "claim_admin") {
+      user = result.user;
+      authMode("login");
+      message(result.message);
     } else if (mode === "verify" || mode === "reset") {
       linkToken = null;
       location.assign("/");
@@ -234,11 +263,13 @@ $("auth-form").addEventListener("submit", (event) => {
     }
   });
 });
-for (const value of ["login", "register", "forgot", "resend"])
-  $("show-" + value).addEventListener("click", () => {
-    if (linkPage) location.assign("/");
-    else authMode(value);
-  });
+for (const value of ["login", "register", "claim_admin", "forgot", "resend"])
+  if ($("show-" + value)) {
+    $("show-" + value).addEventListener("click", () => {
+      if (linkPage) location.assign("/");
+      else authMode(value);
+    });
+  }
 $("sign-out").addEventListener("click", () =>
   action(async () => {
     await api("/auth/logout", {});
