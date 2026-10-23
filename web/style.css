@@ -90,6 +90,7 @@ select {
   background: white;
   font: inherit;
   color: inherit;
+  resize: vertical;
 }
 button {
   width: 100%;
@@ -180,7 +181,7 @@ li {
 }
 .stats {
   display: flex;
-  gap: 36px;
+  gap: 24px;
   margin: 25px 0;
 }
 .stats strong,
@@ -195,6 +196,47 @@ li {
 .stats span {
   font-size: 13px;
   color: #637086;
+}
+.person p.notes-text {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: #4b5563;
+  font-style: italic;
+}
+.action-btn {
+  width: auto;
+  padding: 6px 12px;
+  margin: 0;
+  font-size: 13px;
+}
+.history-list {
+  padding: 0;
+  list-style: none;
+  margin: 12px 0 0;
+}
+.history-list li {
+  padding: 12px 0;
+  border-bottom: 1px dashed #e2e8f0;
+  font-size: 13px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.status-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.status-served {
+  background: #e6f4ea;
+  color: #137333;
+}
+.status-cancelled, .status-left {
+  background: #fce8e6;
+  color: #c5221f;
 }
 #message {
   font-size: 14px;

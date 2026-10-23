@@ -272,6 +272,30 @@ class AccountsTest(unittest.TestCase):
         self.assertEqual(self.request(sarah, "/status/" + s["id"])[1]["position"], 1)
         self.assertEqual(self.request(sarah, "/leave", {"id": s["id"]}, s_csrf)[0], 200)
         self.assertEqual(self.request(admin, "/serve", {}, admin_csrf)[0], 409)
+
+        # Test ticket notes, updating ticket, admin cancelling ticket, and admin history
+        _, a_new, _ = self.request(
+            adam, "/join", {"issue": "Hardware Issue", "notes": "Mouse broken"}, a_csrf
+        )
+        self.assertEqual(a_new["notes"], "Mouse broken")
+        self.assertEqual(a_new["estimated_wait_minutes"], 0)
+
+        # Adam updates ticket while waiting
+        _, a_upd, _ = self.request(
+            adam, "/update", {"id": a_new["id"], "issue": "Printing Issue", "notes": "Printer jam"}, a_csrf
+        )
+        self.assertEqual(a_upd["issue"], "Printing Issue")
+        self.assertEqual(a_upd["notes"], "Printer jam")
+
+        # Admin cancels Adam's ticket
+        self.assertEqual(self.request(admin, "/cancel", {"id": a_new["id"]}, admin_csrf)[0], 200)
+
+        # Check Admin history
+        code, history_res, _ = self.request(admin, "/history")
+        self.assertEqual(code, 200)
+        history_statuses = [item["status"] for item in history_res["history"]]
+        self.assertIn("cancelled", history_statuses)
+        self.assertIn("served", history_statuses)
         self.assertEqual(
             self.request(adam, "/auth/forgot", {"email": "adam@example.test"})[0], 200
         )
