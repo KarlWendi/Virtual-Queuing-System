@@ -104,6 +104,8 @@ class QueueRequestHandler(BaseHTTPRequestHandler):
                 result = accounts.queue_list(user)
             elif path == "/my-ticket":
                 result = accounts.own_ticket(user)
+            elif path == "/history":
+                result = accounts.history_list(user)
             elif path.startswith("/status/"):
                 result = accounts.status(user, path[len("/status/") :])
             else:
@@ -185,7 +187,7 @@ class QueueRequestHandler(BaseHTTPRequestHandler):
                     return
                 else:
                     raise accounts.AppError("Page not found.", 404)
-            elif path in ("/join", "/leave", "/serve", "/acknowledge"):
+            elif path in ("/join", "/leave", "/serve", "/acknowledge", "/update", "/cancel"):
                 accounts.require_user(user)
                 self.check_csrf(user)
                 result = accounts.queue_action(user, path, data)

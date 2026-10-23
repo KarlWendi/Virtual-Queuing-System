@@ -62,10 +62,19 @@ def initialize():
         CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY,email TEXT UNIQUE NOT NULL,name TEXT NOT NULL,password TEXT NOT NULL,verified INTEGER NOT NULL DEFAULT 0,role TEXT NOT NULL DEFAULT 'client');
         CREATE TABLE IF NOT EXISTS sessions(hash TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),expires INTEGER NOT NULL,csrf TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS links(hash TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),kind TEXT NOT NULL,expires INTEGER NOT NULL);
-        CREATE TABLE IF NOT EXISTS entries(seq INTEGER PRIMARY KEY AUTOINCREMENT,id TEXT UNIQUE NOT NULL,user_id TEXT NOT NULL REFERENCES users(id),name TEXT NOT NULL,issue TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'waiting',notified INTEGER NOT NULL DEFAULT 0);
+        CREATE TABLE IF NOT EXISTS entries(seq INTEGER PRIMARY KEY AUTOINCREMENT,id TEXT UNIQUE NOT NULL,user_id TEXT NOT NULL REFERENCES users(id),name TEXT NOT NULL,issue TEXT NOT NULL,notes TEXT NOT NULL DEFAULT '',status TEXT NOT NULL DEFAULT 'waiting',notified INTEGER NOT NULL DEFAULT 0,created_at INTEGER NOT NULL DEFAULT 0,served_at INTEGER DEFAULT NULL,updated_at INTEGER DEFAULT NULL);
         CREATE UNIQUE INDEX IF NOT EXISTS one_waiting_per_user ON entries(user_id) WHERE status='waiting';
         CREATE TABLE IF NOT EXISTS limits(key TEXT PRIMARY KEY,count INTEGER NOT NULL,expires INTEGER NOT NULL);
         """)
+        cols = [r[1] for r in db.execute("PRAGMA table_info(entries)").fetchall()]
+        if "notes" not in cols:
+            db.execute("ALTER TABLE entries ADD COLUMN notes TEXT NOT NULL DEFAULT ''")
+        if "created_at" not in cols:
+            db.execute("ALTER TABLE entries ADD COLUMN created_at INTEGER NOT NULL DEFAULT 0")
+        if "served_at" not in cols:
+            db.execute("ALTER TABLE entries ADD COLUMN served_at INTEGER DEFAULT NULL")
+        if "updated_at" not in cols:
+            db.execute("ALTER TABLE entries ADD COLUMN updated_at INTEGER DEFAULT NULL")
 
 
 # PASSWORDS AND REQUEST LIMITS
@@ -349,8 +358,15 @@ def queue_list(user):
                     if user["role"] == "admin" or r["user_id"] == user["id"]
                     else "IT support"
                 ),
+                "notes": (
+                    r["notes"]
+                    if (user["role"] == "admin" or r["user_id"] == user["id"]) and "notes" in r.keys()
+                    else ""
+                ),
                 "position": i,
                 "people_ahead": i - 1,
+                "estimated_wait_minutes": (i - 1) * 5,
+                "created_at": r["created_at"] if "created_at" in r.keys() else 0,
             }
             for i, r in enumerate(rows, 1)
         ]
@@ -366,13 +382,44 @@ def ticket(row, db):
         if row["status"] == "waiting"
         else None
     )
+    people_ahead = position - 1 if position is not None else None
+    estimated_wait = people_ahead * 5 if people_ahead is not None else None
+    keys = row.keys()
     return {
         "id": row["id"],
         "name": row["name"],
         "issue": row["issue"],
+        "notes": row["notes"] if "notes" in keys else "",
         "status": row["status"],
         "position": position,
-        "people_ahead": position - 1 if position else None,
+        "people_ahead": people_ahead,
+        "estimated_wait_minutes": estimated_wait,
+        "created_at": row["created_at"] if "created_at" in keys else 0,
+        "served_at": row["served_at"] if "served_at" in keys else None,
+        "updated_at": row["updated_at"] if "updated_at" in keys else None,
+    }
+
+
+def history_list(user):
+    require_user(user, admin=True)
+    with connect() as db:
+        rows = db.execute(
+            "SELECT * FROM entries WHERE status!='waiting' ORDER BY seq DESC LIMIT 50"
+        ).fetchall()
+    return {
+        "history": [
+            {
+                "id": r["id"],
+                "name": r["name"],
+                "issue": r["issue"],
+                "notes": r["notes"] if "notes" in r.keys() else "",
+                "status": r["status"],
+                "created_at": r["created_at"] if "created_at" in r.keys() else 0,
+                "served_at": r["served_at"] if "served_at" in r.keys() else None,
+                "updated_at": r["updated_at"] if "updated_at" in r.keys() else None,
+            }
+            for r in rows
+        ]
     }
 
 
@@ -396,17 +443,21 @@ def status(user, entry_id):
 
 
 def queue_action(user, path, data):
-    require_user(user, admin=path == "/serve")
+    require_user(user, admin=path in ("/serve", "/cancel"))
     if path == "/join" and user["role"] == "admin":
         raise AppError(
             "Administrator accounts manage the queue and cannot join as clients.", 403
         )
     with connect() as db:
         db.execute("BEGIN IMMEDIATE")
+        now = int(time.time())
         if path == "/join":
             issue = data.get("issue")
             if issue not in ISSUES:
                 raise AppError("Select an IT support issue.")
+            notes = data.get("notes", "")
+            if not isinstance(notes, str) or len(notes) > 500:
+                raise AppError("Notes must be 500 characters or fewer.")
             if db.execute(
                 "SELECT 1 FROM entries WHERE user_id=? AND status='waiting'",
                 (user["id"],),
@@ -419,8 +470,8 @@ def queue_action(user, path, data):
             )
             entry_id = secrets.token_hex(16)
             db.execute(
-                "INSERT INTO entries(id,user_id,name,issue) VALUES(?,?,?,?)",
-                (entry_id, user["id"], user["name"], issue),
+                "INSERT INTO entries(id,user_id,name,issue,notes,created_at) VALUES(?,?,?,?,?,?)",
+                (entry_id, user["id"], user["name"], issue, notes.strip(), now),
             )
             row = db.execute("SELECT * FROM entries WHERE id=?", (entry_id,)).fetchone()
             return ticket(row, db)
@@ -430,16 +481,52 @@ def queue_action(user, path, data):
             ).fetchone()
             if not row:
                 raise AppError("There is nobody waiting.", 409)
-            db.execute("UPDATE entries SET status='served' WHERE id=?", (row["id"],))
+            db.execute(
+                "UPDATE entries SET status='served', served_at=? WHERE id=?",
+                (now, row["id"]),
+            )
             return {
                 "id": row["id"],
                 "name": row["name"],
                 "issue": row["issue"],
                 "message": "Client called",
             }
+        if path == "/cancel":
+            entry_id = data.get("id")
+            if not isinstance(entry_id, str):
+                raise AppError("Provide a client ID.")
+            row = db.execute(
+                "SELECT * FROM entries WHERE id=? AND status='waiting'", (entry_id,)
+            ).fetchone()
+            if not row:
+                raise AppError("Client not found or not waiting.", 404)
+            db.execute("UPDATE entries SET status='cancelled' WHERE id=?", (entry_id,))
+            return {"name": row["name"], "message": "Ticket cancelled"}
+
         entry_id = data.get("id")
         if not isinstance(entry_id, str):
             raise AppError("Provide a client ID.")
+
+        if path == "/update":
+            row = db.execute(
+                "SELECT * FROM entries WHERE id=? AND user_id=? AND status IN ('waiting', 'served')",
+                (entry_id, user["id"]),
+            ).fetchone()
+            if not row:
+                raise AppError("Active ticket not found.", 404)
+            issue = data.get("issue", row["issue"])
+            if issue not in ISSUES:
+                raise AppError("Select an IT support issue.")
+            notes = data.get("notes", row["notes"] if "notes" in row.keys() else "")
+            if not isinstance(notes, str) or len(notes) > 500:
+                raise AppError("Notes must be 500 characters or fewer.")
+            db.execute(
+                "UPDATE entries SET issue=?, notes=?, updated_at=? WHERE id=?",
+                (issue, notes.strip(), now, entry_id),
+            )
+            row = db.execute("SELECT * FROM entries WHERE id=?", (entry_id,)).fetchone()
+            return ticket(row, db)
+
         row = db.execute(
             "SELECT * FROM entries WHERE id=? AND user_id=?", (entry_id, user["id"])
         ).fetchone()

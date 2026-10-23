@@ -61,7 +61,13 @@ function render() {
       ? "Your place in line"
       : "Join the queue";
   $("name").value = user ? user.name : "";
-  if (client) $("client-name").textContent = client.name;
+  if (client) {
+    $("client-name").textContent = client.name;
+    if (document.activeElement !== $("edit-issue") && document.activeElement !== $("edit-notes")) {
+      $("edit-issue").value = client.issue || "";
+      $("edit-notes").value = client.notes || "";
+    }
+  }
   const titles = {
     login: "Sign in",
     register: "Create your account",
@@ -105,11 +111,26 @@ function render() {
     "join-button",
     "leave-button",
     "serve-button",
+    "update-ticket-button",
     "sign-out",
   ])
-    $(id).disabled = busy;
+    if ($(id)) $(id).disabled = busy;
 }
 // LIVE QUEUE AND TURN NOTIFICATIONS
+
+function notifyUser(title, body) {
+  if ("Notification" in window && Notification.permission === "granted") {
+    try {
+      new Notification(title, { body });
+    } catch (e) {}
+  }
+}
+
+if ("Notification" in window && Notification.permission === "default") {
+  document.addEventListener("click", () => {
+    Notification.requestPermission();
+  }, { once: true });
+}
 
 function renderQueue(clients) {
   $("queue").replaceChildren();
@@ -128,11 +149,71 @@ function renderQueue(clients) {
     person.className = "person";
     name.textContent = item.name;
     issue.textContent = item.issue;
+    if (item.notes) {
+      const notesP = document.createElement("p");
+      notesP.className = "notes-text";
+      notesP.textContent = `“${item.notes}”`;
+      person.append(name, issue, notesP);
+    } else {
+      person.append(name, issue);
+    }
     ahead.className = "ahead";
     ahead.textContent = `${item.people_ahead} ahead`;
-    person.append(name, issue);
-    row.append(num, person, ahead);
+
+    if (admin && user && user.role === "admin") {
+      const cancelBtn = document.createElement("button");
+      cancelBtn.type = "button";
+      cancelBtn.className = "action-btn secondary";
+      cancelBtn.textContent = "Cancel";
+      cancelBtn.style.marginLeft = "8px";
+      cancelBtn.addEventListener("click", () => {
+        action(async () => {
+          const res = await api("/cancel", { id: item.id });
+          message(`${res.name}’s ticket was cancelled.`);
+          await refresh();
+        });
+      });
+      row.append(num, person, ahead, cancelBtn);
+    } else {
+      row.append(num, person, ahead);
+    }
     $("queue").append(row);
+  }
+}
+
+function renderHistory(historyItems) {
+  const section = $("admin-history-section");
+  if (!section) return;
+  section.hidden = !admin || !user || user.role !== "admin";
+  if (section.hidden) return;
+
+  const list = $("history-list");
+  list.replaceChildren();
+  $("history-empty").hidden = !!historyItems.length;
+
+  for (const item of historyItems) {
+    const li = document.createElement("li");
+    const info = document.createElement("div");
+    const nameStr = document.createElement("strong");
+    nameStr.textContent = item.name + " ";
+    const issueSpan = document.createElement("span");
+    issueSpan.textContent = `(${item.issue})`;
+    issueSpan.style.color = "#637086";
+    info.append(nameStr, issueSpan);
+
+    if (item.notes) {
+      const notesP = document.createElement("p");
+      notesP.className = "notes-text";
+      notesP.textContent = `“${item.notes}”`;
+      info.append(notesP);
+    }
+
+    const tag = document.createElement("span");
+    tag.className = `status-tag status-${item.status}`;
+    tag.textContent = item.status;
+
+    li.append(info, tag);
+    list.append(li);
   }
 }
 async function refresh() {
@@ -164,16 +245,27 @@ async function refresh() {
     return;
   }
   renderQueue((await api("/queue")).queue);
+  if (admin && user.role === "admin") {
+    const historyRes = await api("/history");
+    renderHistory(historyRes.history);
+  }
   if (!admin) {
     client = (await api("/my-ticket")).client;
     if (client && client.status === "served") {
       $("turn-title").textContent = `${client.name}, it is now your turn!`;
+      notifyUser("IT Help Desk - Your Turn!", `${client.name}, it is now your turn! Please proceed to the IT desk.`);
       notice = client.id;
       client = null;
       if (!$("turn-dialog").open) $("turn-dialog").showModal();
     } else if (client) {
       $("position").textContent = client.position;
       $("ahead").textContent = client.people_ahead;
+      $("wait-time").textContent =
+        client.estimated_wait_minutes === 0
+          ? "Next!"
+          : client.estimated_wait_minutes
+          ? `~${client.estimated_wait_minutes} min`
+          : "—";
     }
   }
   render();
@@ -254,12 +346,32 @@ $("sign-out").addEventListener("click", () =>
 $("join-form").addEventListener("submit", (event) => {
   event.preventDefault();
   action(async () => {
-    client = await api("/join", { issue: $("issue").value });
+    client = await api("/join", {
+      issue: $("issue").value,
+      notes: $("notes") ? $("notes").value.trim() : "",
+    });
     $("issue").value = "";
+    if ($("notes")) $("notes").value = "";
     message("You’re in the queue. Keep this page open.");
     await refresh();
   });
 });
+const editForm = $("edit-ticket-form");
+if (editForm) {
+  editForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    action(async () => {
+      if (!client) return;
+      client = await api("/update", {
+        id: client.id,
+        issue: $("edit-issue").value,
+        notes: $("edit-notes").value.trim(),
+      });
+      message("Ticket updated successfully.");
+      await refresh();
+    });
+  });
+}
 $("leave-button").addEventListener("click", () =>
   action(async () => {
     if (!client) return;

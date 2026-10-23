@@ -91,6 +91,14 @@
                 <option>Printing Issue</option>
                 <option>Email Issue</option>
                 <option>Other</option></select
+              ><label for="notes">Additional notes (optional)</label
+              ><textarea
+                id="notes"
+                name="notes"
+                rows="2"
+                maxlength="500"
+                placeholder="Briefly describe what's happening..."
+              ></textarea
               ><button id="join-button">
                 Join Queue <span aria-hidden="true">→</span>
               </button>
@@ -104,9 +112,28 @@
                 <div>
                   <strong id="ahead">—</strong><span>People ahead</span>
                 </div>
+                <div>
+                  <strong id="wait-time">—</strong><span>Est. wait</span>
+                </div>
               </div>
-              <p>Keep this page open to receive your turn notification.</p>
-              <button id="leave-button" class="secondary">Leave Queue</button>
+              <form id="edit-ticket-form">
+                <label for="edit-issue">Update Issue</label>
+                <select id="edit-issue" required>
+                  <option value="">Select an issue</option>
+                  <option>Password / Account Issue</option>
+                  <option>Wi-Fi / Network Issue</option>
+                  <option>Software Issue</option>
+                  <option>Hardware Issue</option>
+                  <option>Printing Issue</option>
+                  <option>Email Issue</option>
+                  <option>Other</option>
+                </select>
+                <label for="edit-notes">Update Notes</label>
+                <textarea id="edit-notes" rows="2" maxlength="500" placeholder="Optional details..."></textarea>
+                <button type="submit" id="update-ticket-button" class="secondary">Save Changes</button>
+              </form>
+              <p class="small" style="margin-top:16px;">Keep this page open to receive your turn notification.</p>
+              <button id="leave-button" class="secondary" style="margin-top:10px;">Leave Queue</button>
             </div>
             <div id="admin-controls" hidden>
               <p>
@@ -132,6 +159,13 @@
           <p id="empty" class="empty">
             No one is waiting. You’re welcome to join.
           </p>
+          <div id="admin-history-section" hidden style="margin-top: 32px; border-top: 1px solid #edf0f4; padding-top: 20px;">
+            <div class="queue-heading">
+              <h2>Recent Call History</h2>
+            </div>
+            <ul id="history-list" class="history-list"></ul>
+            <p id="history-empty" class="empty">No past calls recorded yet.</p>
+          </div>
         </section>
       </div>
       <footer>
