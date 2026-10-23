@@ -313,6 +313,14 @@ $("auth-form").addEventListener("submit", (event) => {
     if (mode === "login") {
       user = result.user;
       csrf = result.csrf;
+      if (user.role === "admin" && location.pathname !== "/admin") {
+        location.assign("/admin");
+        return;
+      }
+      if (user.role !== "admin" && location.pathname === "/admin") {
+        location.assign("/");
+        return;
+      }
       await refresh();
       message("Signed in.");
     } else if (mode === "verify" || mode === "reset") {
