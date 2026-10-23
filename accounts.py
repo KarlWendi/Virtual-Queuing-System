@@ -20,6 +20,7 @@ BASE_URL = os.environ.get(
     "QUEUE_BASE_URL",
     os.environ.get("RENDER_EXTERNAL_URL", "http://127.0.0.1:8000"),
 ).rstrip("/")
+ADMIN_SECRET_KEY = os.environ.get("ADMIN_SECRET_KEY", "admin-secret-123")
 ISSUES = [
     "Password / Account Issue",
     "Wi-Fi / Network Issue",
@@ -59,13 +60,16 @@ def connect():
 def initialize():
     with connect() as db:
         db.executescript("""
-        CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY,email TEXT UNIQUE NOT NULL,name TEXT NOT NULL,password TEXT NOT NULL,verified INTEGER NOT NULL DEFAULT 0,role TEXT NOT NULL DEFAULT 'client');
+        CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY,email TEXT UNIQUE NOT NULL,name TEXT NOT NULL,password TEXT NOT NULL,verified INTEGER NOT NULL DEFAULT 0,role TEXT NOT NULL DEFAULT 'client',admin_pin TEXT);
         CREATE TABLE IF NOT EXISTS sessions(hash TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),expires INTEGER NOT NULL,csrf TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS links(hash TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),kind TEXT NOT NULL,expires INTEGER NOT NULL);
         CREATE TABLE IF NOT EXISTS entries(seq INTEGER PRIMARY KEY AUTOINCREMENT,id TEXT UNIQUE NOT NULL,user_id TEXT NOT NULL REFERENCES users(id),name TEXT NOT NULL,issue TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'waiting',notified INTEGER NOT NULL DEFAULT 0);
         CREATE UNIQUE INDEX IF NOT EXISTS one_waiting_per_user ON entries(user_id) WHERE status='waiting';
         CREATE TABLE IF NOT EXISTS limits(key TEXT PRIMARY KEY,count INTEGER NOT NULL,expires INTEGER NOT NULL);
         """)
+        columns = [row[1] for row in db.execute("PRAGMA table_info(users)").fetchall()]
+        if "admin_pin" not in columns:
+            db.execute("ALTER TABLE users ADD COLUMN admin_pin TEXT")
 
 
 # PASSWORDS AND REQUEST LIMITS
@@ -249,6 +253,23 @@ def register(data):
     }
 
 
+def validate_pin_format(pin):
+    if not isinstance(pin, str) or not pin.isdigit() or not (4 <= len(pin) <= 8):
+        raise AppError("Enter a valid numeric PIN between 4 and 8 digits.")
+
+def pin_hash(pin):
+    validate_pin_format(pin)
+    salt = secrets.token_hex(16)
+    result = hashlib.scrypt(
+        pin.encode(),
+        salt=bytes.fromhex(salt),
+        n=32768,
+        r=8,
+        p=1,
+        maxmem=64 * 1024 * 1024,
+    )
+    return salt + ":" + result.hex()
+
 def login(data):
     email = email_address(data.get("email"))
     with connect() as db:
@@ -263,6 +284,10 @@ def login(data):
             "Verify your email before signing in. You can request another verification link.",
             403,
         )
+    if row["role"] == "admin":
+        pin = data.get("pin")
+        if not pin or not row["admin_pin"] or not password_matches(str(pin), row["admin_pin"]):
+            raise AppError("Valid Admin PIN is required for administrator sign in.", 401)
     token = secrets.token_urlsafe(32)
     csrf = secrets.token_urlsafe(32)
     with connect() as db:
@@ -272,6 +297,31 @@ def login(data):
             (digest(token), row["id"], int(time.time()) + 43200, csrf),
         )
     return {"user": public_user(row), "csrf": csrf}, token
+
+def claim_admin(user, data):
+    require_user(user)
+    secret_key = data.get("secret_key")
+    pin = data.get("pin")
+    if not isinstance(secret_key, str) or not secrets.compare_digest(secret_key, ADMIN_SECRET_KEY):
+        raise AppError("Invalid Admin Secret Key.", 403)
+    validate_pin_format(pin)
+    hashed_pin = pin_hash(str(pin))
+    with connect() as db:
+        db.execute("BEGIN IMMEDIATE")
+        db.execute(
+            "UPDATE users SET role='admin', admin_pin=? WHERE id=?",
+            (hashed_pin, user["id"]),
+        )
+        db.execute(
+            "UPDATE entries SET status='left', notified=1 WHERE user_id=? AND status='waiting'",
+            (user["id"],),
+        )
+        db.execute(
+            "UPDATE entries SET notified=1 WHERE user_id=? AND status='served'",
+            (user["id"],),
+        )
+        row = db.execute("SELECT * FROM users WHERE id=?", (user["id"],)).fetchone()
+    return {"message": "Admin status claimed successfully. Please sign in with your email, password, and PIN.", "user": public_user(row)}
 
 
 def request_link(data, kind):
@@ -454,13 +504,15 @@ def queue_action(user, path, data):
         return {"name": row["name"], "message": "You have left the queue"}
 
 
-def set_admin(email):
+def set_admin(email, pin="123456"):
     email = email_address(email)
+    validate_pin_format(str(pin))
+    hashed_pin = pin_hash(str(pin))
     with connect() as db:
         row = db.execute("SELECT * FROM users WHERE email=?", (email,)).fetchone()
         if not row or not row["verified"]:
             raise AppError("Register and verify this account first.")
-        db.execute("UPDATE users SET role='admin' WHERE id=?", (row["id"],))
+        db.execute("UPDATE users SET role='admin', admin_pin=? WHERE id=?", (hashed_pin, row["id"]))
         db.execute(
             "UPDATE entries SET status='left', notified=1 WHERE user_id=? AND status='waiting'",
             (row["id"],),

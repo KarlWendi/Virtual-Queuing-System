@@ -59,11 +59,31 @@
                   required
                 />
               </div>
+              <div id="auth-pin-row" hidden>
+                <label for="auth-pin">Admin PIN (4-8 digits)</label
+                ><input
+                  id="auth-pin"
+                  type="password"
+                  inputmode="numeric"
+                  pattern="[0-9]{4,8}"
+                  maxlength="8"
+                  autocomplete="off"
+                />
+              </div>
+              <div id="auth-secret-row" hidden>
+                <label for="auth-secret">Admin Secret Key</label
+                ><input
+                  id="auth-secret"
+                  type="password"
+                  autocomplete="off"
+                />
+              </div>
               <button id="auth-submit">Sign in</button>
             </form>
             <div class="auth-links">
               <button id="show-login" type="button">Sign in</button
               ><button id="show-register" type="button">Create account</button
+              ><button id="show-claim-admin" type="button" hidden>Become Admin</button
               ><button id="show-forgot" type="button">Forgot password?</button
               ><button id="show-resend" type="button">
                 Resend verification
