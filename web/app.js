@@ -231,13 +231,10 @@ async function refresh() {
     render();
     return;
   }
-  if (user.role === "admin" && !admin && !linkPage) {
-    location.replace("/admin");
-    return;
-  }
   if (admin && user.role !== "admin") {
     render();
-    $("connection").textContent = "Administrator access required";
+    $("connection").textContent = "Administrator access required to manage queue";
+    renderQueue((await api("/queue")).queue);
     return;
   }
   if (linkPage) {
