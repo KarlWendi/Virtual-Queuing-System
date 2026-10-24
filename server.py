@@ -171,6 +171,10 @@ class QueueRequestHandler(BaseHTTPRequestHandler):
                     result = accounts.request_link(data, "verify")
                 elif path == "/auth/forgot":
                     result = accounts.request_link(data, "reset")
+                elif path == "/auth/claim-admin":
+                    accounts.require_user(user)
+                    self.check_csrf(user)
+                    result = accounts.claim_admin(user, data)
                 elif path == "/auth/logout":
                     accounts.require_user(user)
                     self.check_csrf(user)

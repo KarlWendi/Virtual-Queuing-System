@@ -83,9 +83,12 @@ class AccountsTest(unittest.TestCase):
         self.assertEqual(self.request(b, "/auth/register", data)[0], 201)
         return self.link(email, "verify")
 
-    def login(self, b, email, password="Long test password 123"):
+    def login(self, b, email, password="Long test password 123", pin=None):
+        payload = {"email": email, "password": password}
+        if pin:
+            payload["pin"] = pin
         code, result, headers = self.request(
-            b, "/auth/login", {"email": email, "password": password}
+            b, "/auth/login", payload
         )
         self.assertEqual(code, 200)
         self.assertIn("HttpOnly", headers["Set-Cookie"])
@@ -189,7 +192,7 @@ class AccountsTest(unittest.TestCase):
                 ),
             )
         entry = accounts.queue_action(user, "/join", {"issue": "Software Issue"})
-        accounts.set_admin("manager@example.test")
+        accounts.set_admin("manager@example.test", pin="123456")
         user["role"] = "admin"
         self.assertEqual(accounts.status(user, entry["id"])["status"], "left")
         self.assertIsNone(accounts.own_ticket(user)["client"])
@@ -202,6 +205,46 @@ class AccountsTest(unittest.TestCase):
             ).fetchone()
         self.assertEqual(row["verified"], 1)
         self.assertEqual(row["role"], "admin")
+
+    def test_admin_claim_and_pin_authentication(self):
+        browser = self.browser()
+        token = self.register(browser, "claimadmin@example.test", "ClaimAdmin")
+        self.assertEqual(self.request(browser, "/auth/verify", {"token": token})[0], 200)
+        csrf = self.login(browser, "claimadmin@example.test")
+
+        # Invalid claim attempts
+        self.assertEqual(
+            self.request(browser, "/auth/claim-admin", {"secret_key": "wrong-secret", "pin": "123456"}, csrf)[0],
+            403
+        )
+        self.assertEqual(
+            self.request(browser, "/auth/claim-admin", {"secret_key": "admin-secret-123", "pin": "123"}, csrf)[0],
+            400
+        )
+
+        # Successful claim
+        code, res, _ = self.request(
+            browser,
+            "/auth/claim-admin",
+            {"secret_key": "admin-secret-123", "pin": "654321"},
+            csrf
+        )
+        self.assertEqual(code, 200)
+        self.assertEqual(res["user"]["role"], "admin")
+
+        # Signing in without pin or with wrong pin fails
+        self.assertEqual(
+            self.request(browser, "/auth/login", {"email": "claimadmin@example.test", "password": "Long test password 123"})[0],
+            401
+        )
+        self.assertEqual(
+            self.request(browser, "/auth/login", {"email": "claimadmin@example.test", "password": "Long test password 123", "pin": "000000"})[0],
+            401
+        )
+
+        # Signing in with correct pin succeeds
+        admin_csrf = self.login(browser, "claimadmin@example.test", pin="654321")
+        self.assertTrue(admin_csrf)
 
     def test_full_flow_and_access_boundaries(self):
         adam, sarah, admin, guest = [self.browser() for _ in range(4)]
@@ -227,7 +270,7 @@ class AccountsTest(unittest.TestCase):
             self.assertEqual(self.request(b, "/auth/verify", {"token": token})[0], 200)
         accounts.set_admin("admin@example.test")
         s_csrf = self.login(sarah, "sarah@example.test")
-        admin_csrf = self.login(admin, "admin@example.test")
+        admin_csrf = self.login(admin, "admin@example.test", pin="123456")
         self.assertEqual(self.request(adam, "/serve", {}, a_csrf)[0], 403)
         self.assertEqual(
             self.request(adam, "/join", {"issue": "Software Issue"})[0], 403
@@ -264,6 +307,13 @@ class AccountsTest(unittest.TestCase):
         self.assertEqual(
             self.request(admin, "/serve", {}, admin_csrf)[1]["id"], a["id"]
         )
+        files = sorted(
+            (accounts.DB_PATH.parent / "dev-mail").glob("*.json"),
+            key=lambda p: p.stat().st_mtime_ns,
+        )
+        messages = [json.loads(p.read_text()) for p in files]
+        served_msg = next(m for m in reversed(messages) if m["to"] == "adam@example.test" and "turn" in m["subject"])
+        self.assertIn("turn", served_msg["subject"].lower())
         self.assertEqual(
             self.request(adam, "/my-ticket")[1]["client"]["status"], "served"
         )

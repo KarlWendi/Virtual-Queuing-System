@@ -20,6 +20,7 @@ BASE_URL = os.environ.get(
     "QUEUE_BASE_URL",
     os.environ.get("RENDER_EXTERNAL_URL", "http://127.0.0.1:8000"),
 ).rstrip("/")
+ADMIN_SECRET_KEY = os.environ.get("ADMIN_SECRET_KEY", "admin-secret-123")
 ISSUES = [
     "Password / Account Issue",
     "Wi-Fi / Network Issue",
@@ -59,13 +60,16 @@ def connect():
 def initialize():
     with connect() as db:
         db.executescript("""
-        CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY,email TEXT UNIQUE NOT NULL,name TEXT NOT NULL,password TEXT NOT NULL,verified INTEGER NOT NULL DEFAULT 0,role TEXT NOT NULL DEFAULT 'client');
+        CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY,email TEXT UNIQUE NOT NULL,name TEXT NOT NULL,password TEXT NOT NULL,verified INTEGER NOT NULL DEFAULT 0,role TEXT NOT NULL DEFAULT 'client',admin_pin TEXT);
         CREATE TABLE IF NOT EXISTS sessions(hash TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),expires INTEGER NOT NULL,csrf TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS links(hash TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),kind TEXT NOT NULL,expires INTEGER NOT NULL);
         CREATE TABLE IF NOT EXISTS entries(seq INTEGER PRIMARY KEY AUTOINCREMENT,id TEXT UNIQUE NOT NULL,user_id TEXT NOT NULL REFERENCES users(id),name TEXT NOT NULL,issue TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'waiting',notified INTEGER NOT NULL DEFAULT 0);
         CREATE UNIQUE INDEX IF NOT EXISTS one_waiting_per_user ON entries(user_id) WHERE status='waiting';
         CREATE TABLE IF NOT EXISTS limits(key TEXT PRIMARY KEY,count INTEGER NOT NULL,expires INTEGER NOT NULL);
         """)
+        columns = [row[1] for row in db.execute("PRAGMA table_info(users)").fetchall()]
+        if "admin_pin" not in columns:
+            db.execute("ALTER TABLE users ADD COLUMN admin_pin TEXT")
 
 
 # PASSWORDS AND REQUEST LIMITS
@@ -142,15 +146,19 @@ def mail_ready():
         )
 
 
-def send_email(address, kind, token):
+def send_email(address, kind, token=None):
     mail_ready()
-    url = BASE_URL + ("/verify" if kind == "verify" else "/reset") + "#token=" + token
-    subject = (
-        "Verify your IT Help Desk account"
-        if kind == "verify"
-        else "Reset your IT Help Desk password"
-    )
-    text = f"{subject}\n\nOpen this link: {url}\n\nThis link expires in {'24 hours' if kind=='verify' else '30 minutes'} and can be used once. If you did not request it, you can ignore this email."
+    if kind == "served":
+        subject = "It's your turn at the IT Help Desk!"
+        text = f"Hello,\n\nIt is now your turn! Please proceed to the IT Help Desk.\n\nThank you,\nIT Help Desk Team"
+    else:
+        url = BASE_URL + ("/verify" if kind == "verify" else "/reset") + "#token=" + (token or "")
+        subject = (
+            "Verify your IT Help Desk account"
+            if kind == "verify"
+            else "Reset your IT Help Desk password"
+        )
+        text = f"{subject}\n\nOpen this link: {url}\n\nThis link expires in {'24 hours' if kind=='verify' else '30 minutes'} and can be used once. If you did not request it, you can ignore this email."
     if os.environ.get("QUEUE_EMAIL_MODE") == "file":
         folder = DB_PATH.parent / "dev-mail"
         folder.mkdir(exist_ok=True)
@@ -249,6 +257,23 @@ def register(data):
     }
 
 
+def validate_pin_format(pin):
+    if not isinstance(pin, str) or not pin.isdigit() or not (4 <= len(pin) <= 8):
+        raise AppError("Enter a valid numeric PIN between 4 and 8 digits.")
+
+def pin_hash(pin):
+    validate_pin_format(pin)
+    salt = secrets.token_hex(16)
+    result = hashlib.scrypt(
+        pin.encode(),
+        salt=bytes.fromhex(salt),
+        n=32768,
+        r=8,
+        p=1,
+        maxmem=64 * 1024 * 1024,
+    )
+    return salt + ":" + result.hex()
+
 def login(data):
     email = email_address(data.get("email"))
     with connect() as db:
@@ -263,6 +288,10 @@ def login(data):
             "Verify your email before signing in. You can request another verification link.",
             403,
         )
+    if row["role"] == "admin":
+        pin = data.get("pin")
+        if not pin or not row["admin_pin"] or not password_matches(str(pin), row["admin_pin"]):
+            raise AppError("Valid Admin PIN is required for administrator sign in.", 401)
     token = secrets.token_urlsafe(32)
     csrf = secrets.token_urlsafe(32)
     with connect() as db:
@@ -272,6 +301,31 @@ def login(data):
             (digest(token), row["id"], int(time.time()) + 43200, csrf),
         )
     return {"user": public_user(row), "csrf": csrf}, token
+
+def claim_admin(user, data):
+    require_user(user)
+    secret_key = data.get("secret_key")
+    pin = data.get("pin")
+    if not isinstance(secret_key, str) or not secrets.compare_digest(secret_key, ADMIN_SECRET_KEY):
+        raise AppError("Invalid Admin Secret Key.", 403)
+    validate_pin_format(pin)
+    hashed_pin = pin_hash(str(pin))
+    with connect() as db:
+        db.execute("BEGIN IMMEDIATE")
+        db.execute(
+            "UPDATE users SET role='admin', admin_pin=? WHERE id=?",
+            (hashed_pin, user["id"]),
+        )
+        db.execute(
+            "UPDATE entries SET status='left', notified=1 WHERE user_id=? AND status='waiting'",
+            (user["id"],),
+        )
+        db.execute(
+            "UPDATE entries SET notified=1 WHERE user_id=? AND status='served'",
+            (user["id"],),
+        )
+        row = db.execute("SELECT * FROM users WHERE id=?", (user["id"],)).fetchone()
+    return {"message": "Admin status claimed successfully. Please sign in with your email, password, and PIN.", "user": public_user(row)}
 
 
 def request_link(data, kind):
@@ -426,41 +480,54 @@ def queue_action(user, path, data):
             return ticket(row, db)
         if path == "/serve":
             row = db.execute(
-                "SELECT * FROM entries WHERE status='waiting' ORDER BY seq LIMIT 1"
+                "SELECT entries.*, users.email FROM entries JOIN users ON users.id=entries.user_id WHERE entries.status='waiting' ORDER BY entries.seq LIMIT 1"
             ).fetchone()
             if not row:
                 raise AppError("There is nobody waiting.", 409)
             db.execute("UPDATE entries SET status='served' WHERE id=?", (row["id"],))
-            return {
-                "id": row["id"],
-                "name": row["name"],
-                "issue": row["issue"],
-                "message": "Client called",
-            }
-        entry_id = data.get("id")
-        if not isinstance(entry_id, str):
-            raise AppError("Provide a client ID.")
-        row = db.execute(
-            "SELECT * FROM entries WHERE id=? AND user_id=?", (entry_id, user["id"])
-        ).fetchone()
-        if not row:
-            raise AppError("Client not found.", 404)
-        if path == "/acknowledge":
-            db.execute("UPDATE entries SET notified=1 WHERE id=?", (entry_id,))
-            return {"message": "Notification acknowledged"}
-        if row["status"] != "waiting":
-            raise AppError("You are no longer waiting.", 409)
-        db.execute("UPDATE entries SET status='left' WHERE id=?", (entry_id,))
-        return {"name": row["name"], "message": "You have left the queue"}
+            client_email = row["email"]
+            client_id = row["id"]
+            client_name = row["name"]
+            client_issue = row["issue"]
+        else:
+            entry_id = data.get("id")
+            if not isinstance(entry_id, str):
+                raise AppError("Provide a client ID.")
+            row = db.execute(
+                "SELECT * FROM entries WHERE id=? AND user_id=?", (entry_id, user["id"])
+            ).fetchone()
+            if not row:
+                raise AppError("Client not found.", 404)
+            if path == "/acknowledge":
+                db.execute("UPDATE entries SET notified=1 WHERE id=?", (entry_id,))
+                return {"message": "Notification acknowledged"}
+            if row["status"] != "waiting":
+                raise AppError("You are no longer waiting.", 409)
+            db.execute("UPDATE entries SET status='left' WHERE id=?", (entry_id,))
+            return {"name": row["name"], "message": "You have left the queue"}
+
+    # Send email notification after database transaction completes
+    try:
+        send_email(client_email, "served")
+    except Exception:
+        pass
+    return {
+        "id": client_id,
+        "name": client_name,
+        "issue": client_issue,
+        "message": "Client called",
+    }
 
 
-def set_admin(email):
+def set_admin(email, pin="123456"):
     email = email_address(email)
+    validate_pin_format(str(pin))
+    hashed_pin = pin_hash(str(pin))
     with connect() as db:
         row = db.execute("SELECT * FROM users WHERE email=?", (email,)).fetchone()
         if not row or not row["verified"]:
             raise AppError("Register and verify this account first.")
-        db.execute("UPDATE users SET role='admin' WHERE id=?", (row["id"],))
+        db.execute("UPDATE users SET role='admin', admin_pin=? WHERE id=?", (hashed_pin, row["id"]))
         db.execute(
             "UPDATE entries SET status='left', notified=1 WHERE user_id=? AND status='waiting'",
             (row["id"],),
