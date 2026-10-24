@@ -146,15 +146,19 @@ def mail_ready():
         )
 
 
-def send_email(address, kind, token):
+def send_email(address, kind, token=None):
     mail_ready()
-    url = BASE_URL + ("/verify" if kind == "verify" else "/reset") + "#token=" + token
-    subject = (
-        "Verify your IT Help Desk account"
-        if kind == "verify"
-        else "Reset your IT Help Desk password"
-    )
-    text = f"{subject}\n\nOpen this link: {url}\n\nThis link expires in {'24 hours' if kind=='verify' else '30 minutes'} and can be used once. If you did not request it, you can ignore this email."
+    if kind == "served":
+        subject = "It's your turn at the IT Help Desk!"
+        text = f"Hello,\n\nIt is now your turn! Please proceed to the IT Help Desk.\n\nThank you,\nIT Help Desk Team"
+    else:
+        url = BASE_URL + ("/verify" if kind == "verify" else "/reset") + "#token=" + (token or "")
+        subject = (
+            "Verify your IT Help Desk account"
+            if kind == "verify"
+            else "Reset your IT Help Desk password"
+        )
+        text = f"{subject}\n\nOpen this link: {url}\n\nThis link expires in {'24 hours' if kind=='verify' else '30 minutes'} and can be used once. If you did not request it, you can ignore this email."
     if os.environ.get("QUEUE_EMAIL_MODE") == "file":
         folder = DB_PATH.parent / "dev-mail"
         folder.mkdir(exist_ok=True)
@@ -476,32 +480,43 @@ def queue_action(user, path, data):
             return ticket(row, db)
         if path == "/serve":
             row = db.execute(
-                "SELECT * FROM entries WHERE status='waiting' ORDER BY seq LIMIT 1"
+                "SELECT entries.*, users.email FROM entries JOIN users ON users.id=entries.user_id WHERE entries.status='waiting' ORDER BY entries.seq LIMIT 1"
             ).fetchone()
             if not row:
                 raise AppError("There is nobody waiting.", 409)
             db.execute("UPDATE entries SET status='served' WHERE id=?", (row["id"],))
-            return {
-                "id": row["id"],
-                "name": row["name"],
-                "issue": row["issue"],
-                "message": "Client called",
-            }
-        entry_id = data.get("id")
-        if not isinstance(entry_id, str):
-            raise AppError("Provide a client ID.")
-        row = db.execute(
-            "SELECT * FROM entries WHERE id=? AND user_id=?", (entry_id, user["id"])
-        ).fetchone()
-        if not row:
-            raise AppError("Client not found.", 404)
-        if path == "/acknowledge":
-            db.execute("UPDATE entries SET notified=1 WHERE id=?", (entry_id,))
-            return {"message": "Notification acknowledged"}
-        if row["status"] != "waiting":
-            raise AppError("You are no longer waiting.", 409)
-        db.execute("UPDATE entries SET status='left' WHERE id=?", (entry_id,))
-        return {"name": row["name"], "message": "You have left the queue"}
+            client_email = row["email"]
+            client_id = row["id"]
+            client_name = row["name"]
+            client_issue = row["issue"]
+        else:
+            entry_id = data.get("id")
+            if not isinstance(entry_id, str):
+                raise AppError("Provide a client ID.")
+            row = db.execute(
+                "SELECT * FROM entries WHERE id=? AND user_id=?", (entry_id, user["id"])
+            ).fetchone()
+            if not row:
+                raise AppError("Client not found.", 404)
+            if path == "/acknowledge":
+                db.execute("UPDATE entries SET notified=1 WHERE id=?", (entry_id,))
+                return {"message": "Notification acknowledged"}
+            if row["status"] != "waiting":
+                raise AppError("You are no longer waiting.", 409)
+            db.execute("UPDATE entries SET status='left' WHERE id=?", (entry_id,))
+            return {"name": row["name"], "message": "You have left the queue"}
+
+    # Send email notification after database transaction completes
+    try:
+        send_email(client_email, "served")
+    except Exception:
+        pass
+    return {
+        "id": client_id,
+        "name": client_name,
+        "issue": client_issue,
+        "message": "Client called",
+    }
 
 
 def set_admin(email, pin="123456"):

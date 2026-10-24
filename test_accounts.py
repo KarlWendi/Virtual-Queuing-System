@@ -307,6 +307,13 @@ class AccountsTest(unittest.TestCase):
         self.assertEqual(
             self.request(admin, "/serve", {}, admin_csrf)[1]["id"], a["id"]
         )
+        files = sorted(
+            (accounts.DB_PATH.parent / "dev-mail").glob("*.json"),
+            key=lambda p: p.stat().st_mtime_ns,
+        )
+        messages = [json.loads(p.read_text()) for p in files]
+        served_msg = next(m for m in reversed(messages) if m["to"] == "adam@example.test" and "turn" in m["subject"])
+        self.assertIn("turn", served_msg["subject"].lower())
         self.assertEqual(
             self.request(adam, "/my-ticket")[1]["client"]["status"], "served"
         )
