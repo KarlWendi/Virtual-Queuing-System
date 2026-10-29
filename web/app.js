@@ -63,7 +63,7 @@ function render() {
   $("name").value = user ? user.name : "";
   if (client) $("client-name").textContent = client.name;
   const titles = {
-    login: "Sign in",
+    login: admin ? "Admin sign in" : "Sign in",
     register: "Create your account",
     forgot: "Reset your password",
     resend: "Verify your email",
@@ -71,14 +71,22 @@ function render() {
     reset: "Choose a new password",
   };
   $("auth-title").textContent = titles[mode];
+  $("auth-eyebrow").textContent =
+    admin && mode === "login" ? "ADMIN ACCOUNT" : "YOUR ACCOUNT";
   $("auth-submit").textContent = {
-    login: "Sign in",
+    login: admin ? "Sign in as admin" : "Sign in",
     register: "Create account",
     forgot: "Send reset link",
     resend: "Send verification link",
     verify: "Verify email",
     reset: "Save new password",
   }[mode];
+  if ($("switch-role")) {
+    $("switch-role").hidden = linkPage || mode !== "login";
+    $("switch-role").textContent = admin
+      ? "Sign in as customer"
+      : "Sign in as admin";
+  }
   $("auth-description").textContent =
     admin && user && user.role !== "admin"
       ? "Your account does not have administrator access. Use the Client page, or ask the administrator to assign access."
@@ -239,6 +247,11 @@ for (const value of ["login", "register", "forgot", "resend"])
     if (linkPage) location.assign("/");
     else authMode(value);
   });
+if ($("switch-role")) {
+  $("switch-role").addEventListener("click", () => {
+    location.assign(admin ? "/" : "/admin");
+  });
+}
 $("sign-out").addEventListener("click", () =>
   action(async () => {
     await api("/auth/logout", {});
