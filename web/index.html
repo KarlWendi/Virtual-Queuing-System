@@ -3,16 +3,18 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>IT Help Desk Queue</title>
+    <title>VQS - Virtual Queuing System</title>
     <link rel="stylesheet" href="/style.css" />
     <script src="/app.js" defer></script>
   </head>
   <body>
     <header>
-      <a class="brand" href="/">IT Help Desk<span>Support, in order.</span></a>
+      <a class="brand" href="/">VQS<span>Virtual Queuing System</span></a>
       <nav>
-        <a href="/">Client queue</a><a href="/admin">Admin</a
-        ><button id="sign-out" class="nav-button" hidden>Sign out</button>
+        <a href="/">Home</a>
+        <a href="/client">Client</a>
+        <a href="/admin">Admin</a>
+        <button id="sign-out" class="nav-button" hidden>Sign out</button>
       </nav>
     </header>
     <main>
@@ -20,15 +22,57 @@
         Local testing: no emails are sent. Verification and reset messages are
         saved in the private data/dev-mail folder on this computer.
       </p>
-      <div class="intro">
-        <span class="eyebrow">IT SUPPORT</span>
-        <h1>A little less waiting.<br />A lot more clarity.</h1>
+
+      <div id="landing-intro" class="intro">
+        <span class="eyebrow">VIRTUAL QUEUING SYSTEM</span>
+        <h1>Welcome to VQS.<br />Select your portal to continue.</h1>
         <p>
+          Directing you to IT support queue management for clients and administrators.
+        </p>
+      </div>
+
+      <div id="portal-intro" class="intro" hidden>
+        <span id="portal-eyebrow" class="eyebrow">IT SUPPORT</span>
+        <h1 id="portal-heading">A little less waiting.<br />A lot more clarity.</h1>
+        <p id="portal-desc">
           Join the queue, see your place, and we’ll let you know when it’s
           your turn.
         </p>
       </div>
-      <div class="layout">
+
+      <div id="landing-panel" class="landing-grid">
+        <section class="card portal-card">
+          <div>
+            <span class="eyebrow">CLIENT ACCESS</span>
+            <h2>Client Portal</h2>
+            <p class="portal-desc">
+              Sign in or create an account to join the queue, view your position live, and receive turn notifications.
+            </p>
+          </div>
+          <div class="portal-actions">
+            <button id="landing-client-go" type="button">Go to Client Portal &rarr;</button>
+            <div class="landing-sub-actions">
+              <button id="landing-client-signin" type="button" class="secondary">Sign in</button>
+              <button id="landing-client-register" type="button" class="secondary">Create account</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="card portal-card">
+          <div>
+            <span class="eyebrow">ADMINISTRATOR ACCESS</span>
+            <h2>Admin Portal</h2>
+            <p class="portal-desc">
+              Sign in with administrative privileges to manage the IT support queue and call waiting clients.
+            </p>
+          </div>
+          <div class="portal-actions">
+            <button id="landing-admin-go" type="button">Go to Admin Portal &rarr;</button>
+          </div>
+        </section>
+      </div>
+
+      <div id="app-layout" class="layout" hidden>
         <section class="card">
           <div id="account-panel">
             <span id="auth-eyebrow" class="eyebrow">YOUR ACCOUNT</span>
@@ -38,19 +82,19 @@
             </p>
             <form id="auth-form">
               <div id="auth-name-row" hidden>
-                <label for="auth-name">Your name</label
-                ><input id="auth-name" maxlength="100" autocomplete="name" />
+                <label for="auth-name">Your name</label>
+                <input id="auth-name" maxlength="100" autocomplete="name" />
               </div>
-              <label for="auth-email" id="auth-email-label">Email address</label
-              ><input
+              <label for="auth-email" id="auth-email-label">Email address</label>
+              <input
                 id="auth-email"
                 type="email"
                 autocomplete="email"
                 required
               />
               <div id="auth-password-row">
-                <label for="auth-password">Password</label
-                ><input
+                <label for="auth-password">Password</label>
+                <input
                   id="auth-password"
                   type="password"
                   autocomplete="current-password"
@@ -62,13 +106,13 @@
               <button id="auth-submit">Sign in</button>
             </form>
             <div class="auth-links">
-              <button id="show-login" type="button">Sign in</button
-              ><button id="show-register" type="button">Create account</button
-              ><button id="show-forgot" type="button">Forgot password?</button
-              ><button id="show-resend" type="button">
+              <button id="show-login" type="button">Sign in</button>
+              <button id="show-register" type="button">Create account</button>
+              <button id="show-forgot" type="button">Forgot password?</button>
+              <button id="show-resend" type="button">
                 Resend verification
-              </button
-              ><button id="switch-role" type="button">
+              </button>
+              <button id="switch-role" type="button">
                 Sign in as admin
               </button>
             </div>
@@ -76,16 +120,17 @@
           <div id="queue-panel" hidden>
             <h2 id="panel-title">Join the queue</h2>
             <form id="join-form">
-              <label for="name">Your name</label
-              ><input
+              <label for="name">Your name</label>
+              <input
                 id="name"
                 name="name"
                 maxlength="100"
                 autocomplete="name"
                 required
                 readonly
-              /><label for="issue">What can we help with?</label
-              ><select id="issue" required>
+              />
+              <label for="issue">What can we help with?</label>
+              <select id="issue" required>
                 <option value="">Select an issue</option>
                 <option>Password / Account Issue</option>
                 <option>Wi-Fi / Network Issue</option>
@@ -93,19 +138,20 @@
                 <option>Hardware Issue</option>
                 <option>Printing Issue</option>
                 <option>Email Issue</option>
-                <option>Other</option></select
-              ><button id="join-button">
-                Join Queue <span aria-hidden="true">→</span>
+                <option>Other</option>
+              </select>
+              <button id="join-button">
+                Join Queue <span aria-hidden="true">&rarr;</span>
               </button>
             </form>
             <div id="ticket" hidden>
               <p id="client-name"></p>
               <div class="stats">
                 <div>
-                  <strong id="position">—</strong><span>Your position</span>
+                  <strong id="position">&mdash;</strong><span>Your position</span>
                 </div>
                 <div>
-                  <strong id="ahead">—</strong><span>People ahead</span>
+                  <strong id="ahead">&mdash;</strong><span>People ahead</span>
                 </div>
               </div>
               <p>Keep this page open to receive your turn notification.</p>
@@ -116,7 +162,7 @@
                 Call the person at the front of the queue. Everyone behind them
                 will move up.
               </p>
-              <button id="serve-button">Serve Next →</button>
+              <button id="serve-button">Serve Next &rarr;</button>
               <p class="small">
                 Only accounts assigned administrator access can call the next
                 client.
@@ -130,7 +176,7 @@
             <h2>Current queue</h2>
             <span id="count" class="badge">0 waiting</span>
           </div>
-          <p class="small" id="connection">Connectingâ€¦</p>
+          <p class="small" id="connection">Connecting&hellip;</p>
           <ol id="queue"></ol>
           <p id="empty" class="empty">
             No one is waiting. You’re welcome to join.

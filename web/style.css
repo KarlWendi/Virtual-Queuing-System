@@ -25,6 +25,7 @@ a {
 nav {
   display: flex;
   gap: 24px;
+  align-items: center;
 }
 .brand {
   font-weight: 800;
@@ -57,6 +58,39 @@ h1 {
 .intro p {
   color: #637086;
   max-width: 550px;
+}
+.landing-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 28px;
+  margin-top: 32px;
+}
+.portal-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.portal-card h2 {
+  margin-top: 8px;
+}
+.portal-desc {
+  color: #637086;
+  font-size: 15px;
+  margin-bottom: 24px;
+}
+.portal-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: auto;
+}
+.landing-sub-actions {
+  display: flex;
+  gap: 12px;
+}
+.landing-sub-actions button {
+  margin-top: 0;
+  flex: 1;
 }
 .layout {
   display: grid;
@@ -224,6 +258,7 @@ dialog::backdrop {
   display: none !important;
 }
 @media (max-width: 700px) {
+  .landing-grid,
   .layout {
     grid-template-columns: 1fr;
   }

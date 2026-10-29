@@ -70,6 +70,7 @@ class QueueRequestHandler(BaseHTTPRequestHandler):
             path = urlsplit(self.path).path
             pages = {
                 "/": "index.html",
+                "/client": "index.html",
                 "/admin": "index.html",
                 "/verify": "index.html",
                 "/reset": "index.html",
