@@ -70,6 +70,7 @@ class WsgiTest(unittest.TestCase):
     def test_pages_accounts_and_protected_queue(self):
         for path in (
             "/",
+            "/client",
             "/admin",
             "/verify",
             "/reset",
