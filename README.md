@@ -4,8 +4,9 @@ A browser-based IT help desk queue with verified email accounts, first-come orde
 
 ## Live app
 
-- **Client:** https://karl213.pythonanywhere.com/
-- **Admin:** https://karl213.pythonanywhere.com/admin
+- **Landing:** https://karl213.pythonanywhere.com/
+- **Client Portal:** https://karl213.pythonanywhere.com/client
+- **Admin Portal:** https://karl213.pythonanywhere.com/admin
 
 The app is deployed on PythonAnywhere's free plan with Gmail email delivery and persistent SQLite storage. Its free web app must be renewed monthly through the hosting dashboard.
 
@@ -24,7 +25,7 @@ The app is deployed on PythonAnywhere's free plan with Gmail email delivery and 
 
 ## Using the app
 
-1. Open the Client link and choose **Create account**.
+1. Open the Landing page or Client link and choose **Create account**.
 2. Follow the verification link in your email, then sign in.
 3. Select an IT support issue and choose **Join Queue**.
 4. Keep the page open for updates and your turn notification.
@@ -44,7 +45,7 @@ cd Virtual-Queuing-System
 python server.py
 ```
 
-The server opens Client and Admin tabs automatically. Leave it running. Local pages are at `http://127.0.0.1:8000/` and `/admin`.
+The server opens Landing, Client, and Admin tabs automatically. Leave it running. Local pages are at `http://127.0.0.1:8000/`, `/client`, and `/admin`.
 
 Accounts need email configuration. For local development without sending email, set `QUEUE_EMAIL_MODE=file` before starting; private verification messages are saved under `data/dev-mail/`. For real Gmail delivery, run `python start_gmail.py` and enter a Google app password at its hidden prompt. Full instructions are in [ACCOUNT_SETUP.md](ACCOUNT_SETUP.md).
 
