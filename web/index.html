@@ -14,23 +14,198 @@
         <a href="/">Home</a>
         <a href="/client">Client</a>
         <a href="/admin">Admin</a>
+        <span id="nav-user-greeting" class="nav-greeting" hidden></span>
         <button id="sign-out" class="nav-button" hidden>Sign out</button>
       </nav>
     </header>
+
     <main>
       <p id="dev-mail-notice" class="dev-notice" hidden>
         Local testing: no emails are sent. Verification and reset messages are
         saved in the private data/dev-mail folder on this computer.
       </p>
 
-      <div id="landing-intro" class="intro">
-        <span class="eyebrow">VIRTUAL QUEUING SYSTEM</span>
-        <h1>Welcome to VQS.<br />Select your portal to continue.</h1>
-        <p>
-          Directing you to IT support queue management for clients and administrators.
-        </p>
+      <!-- LANDING PAGE VIEW (shown on '/') -->
+      <div id="landing-view">
+        <!-- Hero Section -->
+        <section class="hero-section">
+          <div class="hero-badge">SMART IT SUPPORT QUEUING</div>
+          <h1 class="hero-title">
+            Less waiting.<br />More clarity & control.
+          </h1>
+          <p class="hero-subtitle">
+            Welcome to the Virtual Queuing System (VQS). Join support lines from any device, track your live position in real-time, and get notified instantly when an IT specialist is ready for you.
+          </p>
+
+          <!-- Authenticated Welcome Banner (visible when logged in) -->
+          <div id="landing-auth-banner" class="auth-banner" hidden>
+            <div class="auth-banner-info">
+              <span class="auth-banner-label">ACTIVE SESSION</span>
+              <h3 id="landing-user-name">Welcome back</h3>
+              <p id="landing-user-role-desc">You are currently signed in.</p>
+            </div>
+            <div class="auth-banner-actions">
+              <button id="landing-resume-btn" type="button">Go to Portal &rarr;</button>
+              <button id="landing-banner-signout" type="button" class="secondary">Sign out</button>
+            </div>
+          </div>
+
+          <!-- Quick Portal CTA Buttons -->
+          <div id="landing-hero-actions" class="hero-actions">
+            <a href="/client" class="btn btn-primary" id="hero-client-cta">Client Queue &rarr;</a>
+            <a href="/admin" class="btn btn-secondary" id="hero-admin-cta">Admin Dashboard</a>
+          </div>
+        </section>
+
+        <!-- Portal Cards Grid -->
+        <section class="landing-section">
+          <div class="section-header">
+            <span class="eyebrow">ACCESS PORTALS</span>
+            <h2>Choose Your Workspace</h2>
+            <p>Select whether you are joining as a client seeking IT help or managing the queue as an administrator.</p>
+          </div>
+
+          <div class="landing-grid">
+            <div class="card portal-card">
+              <div class="portal-card-header">
+                <span class="portal-icon" aria-hidden="true">👤</span>
+                <div>
+                  <span class="eyebrow">FOR CLIENTS</span>
+                  <h3>Client Portal</h3>
+                </div>
+              </div>
+              <p class="portal-desc">
+                Sign in or register an account to join the IT support line. View your real-time position, people ahead, and receive an instant screen alert when called.
+              </p>
+              <ul class="portal-features">
+                <li>✓ Join the queue with your specific IT issue</li>
+                <li>✓ Real-time position tracking across devices</li>
+                <li>✓ Instant notification when it's your turn</li>
+              </ul>
+              <div class="portal-actions">
+                <button id="landing-client-go" type="button">Enter Client Portal &rarr;</button>
+                <div class="landing-sub-actions" id="landing-client-sub-actions">
+                  <button id="landing-client-signin" type="button" class="secondary">Sign in</button>
+                  <button id="landing-client-register" type="button" class="secondary">Create account</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="card portal-card">
+              <div class="portal-card-header">
+                <span class="portal-icon" aria-hidden="true">🛡️</span>
+                <div>
+                  <span class="eyebrow">FOR ADMINISTRATORS</span>
+                  <h3>Administrator Portal</h3>
+                </div>
+              </div>
+              <p class="portal-desc">
+                Access the IT help desk dashboard to monitor waiting clients, review reported support categories, and call the next client in line.
+              </p>
+              <ul class="portal-features">
+                <li>✓ Live view of all waiting clients and issues</li>
+                <li>✓ One-click "Serve Next" client calling</li>
+                <li>✓ Protected administrative access controls</li>
+              </ul>
+              <div class="portal-actions">
+                <button id="landing-admin-go" type="button">Enter Admin Portal &rarr;</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- How It Works Section -->
+        <section class="landing-section">
+          <div class="section-header">
+            <span class="eyebrow">SIMPLE WORKFLOW</span>
+            <h2>How VQS Works</h2>
+            <p>A seamless, three-step journey designed to eliminate physical waiting lines.</p>
+          </div>
+
+          <div class="steps-grid">
+            <div class="card step-card">
+              <div class="step-badge">Step 1</div>
+              <h3>Create & Verify</h3>
+              <p>Sign up with your email address and verify your account. Your credentials securely preserve your place across browser sessions.</p>
+            </div>
+            <div class="card step-card">
+              <div class="step-badge">Step 2</div>
+              <h3>Join the Line</h3>
+              <p>Select your IT issue (hardware, software, network, account) and get your position and ticket number immediately.</p>
+            </div>
+            <div class="card step-card">
+              <div class="step-badge">Step 3</div>
+              <h3>Get Notified</h3>
+              <p>Watch your position advance in real-time. When an administrator calls your ticket, you'll receive a prominent prompt to step up.</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- Key Features Grid -->
+        <section class="landing-section">
+          <div class="section-header">
+            <span class="eyebrow">CORE CAPABILITIES</span>
+            <h2>Engineered for Efficiency & Trust</h2>
+            <p>Everything you need for an organized and fair queuing experience.</p>
+          </div>
+
+          <div class="features-grid">
+            <div class="card feature-card">
+              <div class="feature-icon">⏱️</div>
+              <h3>Live Position Sync</h3>
+              <p>Automated two-second updates keep you informed of people ahead without manual page refreshes.</p>
+            </div>
+            <div class="card feature-card">
+              <div class="feature-icon">🔒</div>
+              <h3>Verified Identity</h3>
+              <p>Email verification and session security ensure fair queue access and prevent duplicate submissions.</p>
+            </div>
+            <div class="card feature-card">
+              <div class="feature-icon">📱</div>
+              <h3>Device Mobility</h3>
+              <p>Closing your tab doesn't lose your spot. Sign back in from your computer or phone to restore your place.</p>
+            </div>
+            <div class="card feature-card">
+              <div class="feature-icon">🎯</div>
+              <h3>Categorized Triage</h3>
+              <p>Help desk technicians see issue details up front, speeding up diagnostic and resolution times.</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- FAQ Section -->
+        <section class="landing-section faq-section">
+          <div class="section-header">
+            <span class="eyebrow">FREQUENTLY ASKED QUESTIONS</span>
+            <h2>Common Questions</h2>
+            <p>Find answers to common questions about using VQS.</p>
+          </div>
+
+          <div class="faq-list">
+            <details class="card faq-item" open>
+              <summary>Do I have to keep my browser open while waiting?</summary>
+              <p>Your place in line is securely stored on the server. If you accidentally close your browser, simply sign back in on any device to restore your ticket and position. However, keep the tab open when your turn is near to catch the alert!</p>
+            </details>
+
+            <details class="card faq-item">
+              <summary>Can I enter the queue multiple times?</summary>
+              <p>No. Each verified account may hold only one active queue ticket at a time. This guarantees fairness for all users.</p>
+            </details>
+
+            <details class="card faq-item">
+              <summary>How do I become an administrator?</summary>
+              <p>Administrator privileges are assigned securely by the system owner or via configured administrative keys. Standard user registrations cannot self-assign admin roles.</p>
+            </details>
+
+            <details class="card faq-item">
+              <summary>What should I do if I need to leave before being called?</summary>
+              <p>You can click "Leave Queue" at any time from your client portal ticket. This frees up your spot and moves everyone behind you up automatically.</p>
+            </details>
+          </div>
+        </section>
       </div>
 
+      <!-- PORTAL INTRO (shown on '/client' or '/admin') -->
       <div id="portal-intro" class="intro" hidden>
         <span id="portal-eyebrow" class="eyebrow">IT SUPPORT</span>
         <h1 id="portal-heading">A little less waiting.<br />A lot more clarity.</h1>
@@ -40,38 +215,7 @@
         </p>
       </div>
 
-      <div id="landing-panel" class="landing-grid">
-        <section class="card portal-card">
-          <div>
-            <span class="eyebrow">CLIENT ACCESS</span>
-            <h2>Client Portal</h2>
-            <p class="portal-desc">
-              Sign in or create an account to join the queue, view your position live, and receive turn notifications.
-            </p>
-          </div>
-          <div class="portal-actions">
-            <button id="landing-client-go" type="button">Go to Client Portal &rarr;</button>
-            <div class="landing-sub-actions">
-              <button id="landing-client-signin" type="button" class="secondary">Sign in</button>
-              <button id="landing-client-register" type="button" class="secondary">Create account</button>
-            </div>
-          </div>
-        </section>
-
-        <section class="card portal-card">
-          <div>
-            <span class="eyebrow">ADMINISTRATOR ACCESS</span>
-            <h2>Admin Portal</h2>
-            <p class="portal-desc">
-              Sign in with administrative privileges to manage the IT support queue and call waiting clients.
-            </p>
-          </div>
-          <div class="portal-actions">
-            <button id="landing-admin-go" type="button">Go to Admin Portal &rarr;</button>
-          </div>
-        </section>
-      </div>
-
+      <!-- PORTAL APPLICATION LAYOUT (Auth + Queue Panels) -->
       <div id="app-layout" class="layout" hidden>
         <section class="card">
           <div id="account-panel">
@@ -183,10 +327,25 @@
           </p>
         </section>
       </div>
-      <footer>
-        First come, first served. Your place updates automatically.
+
+      <footer class="main-footer">
+        <div class="footer-content">
+          <div class="footer-brand">
+            <strong>VQS · Virtual Queuing System</strong>
+            <p>Smart, transparent IT help desk queue management.</p>
+          </div>
+          <div class="footer-links">
+            <a href="/">Home</a>
+            <a href="/client">Client Portal</a>
+            <a href="/admin">Admin Portal</a>
+          </div>
+        </div>
+        <div class="footer-bottom">
+          <span>First come, first served. Your place updates automatically.</span>
+        </div>
       </footer>
     </main>
+
     <dialog id="turn-dialog">
       <span class="eyebrow">YOUR TURN</span>
       <h2 id="turn-title">You’re up!</h2>

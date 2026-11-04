@@ -39,20 +39,62 @@ function authMode(value) {
 
 function render() {
   const isHome = homePage && !linkPage;
-  if ($("landing-intro")) $("landing-intro").hidden = !isHome;
-  if ($("landing-panel")) $("landing-panel").hidden = !isHome;
+  if ($("landing-view")) $("landing-view").hidden = !isHome;
   if ($("portal-intro")) $("portal-intro").hidden = isHome;
   if ($("app-layout")) $("app-layout").hidden = isHome;
 
+  // Header active navigation highlighting
+  const navLinks = document.querySelectorAll("nav a");
+  navLinks.forEach((link) => {
+    const href = link.getAttribute("href");
+    if (href === currentPath) {
+      link.classList.add("active");
+    } else {
+      link.classList.remove("active");
+    }
+  });
+
+  if (user) {
+    if ($("nav-user-greeting")) {
+      $("nav-user-greeting").hidden = false;
+      $("nav-user-greeting").textContent = `${user.name} (${user.role === "admin" ? "Admin" : "Client"})`;
+    }
+  } else {
+    if ($("nav-user-greeting")) $("nav-user-greeting").hidden = true;
+  }
+
   if (isHome) {
     if (user) {
+      if ($("landing-auth-banner")) $("landing-auth-banner").hidden = false;
+      if ($("landing-user-name")) {
+        $("landing-user-name").textContent = `Welcome back, ${user.name}!`;
+      }
+      if ($("landing-user-role-desc")) {
+        $("landing-user-role-desc").textContent =
+          user.role === "admin"
+            ? "You are signed in with administrative access."
+            : "You are signed in as a client.";
+      }
+      if ($("landing-resume-btn")) {
+        $("landing-resume-btn").textContent =
+          user.role === "admin" ? "Open Admin Dashboard →" : "View Client Queue →";
+      }
+      if ($("landing-hero-actions")) $("landing-hero-actions").hidden = true;
       if ($("landing-client-go")) {
         $("landing-client-go").textContent =
           user.role === "admin" ? "Go to Client Portal →" : "Go to Client Queue →";
       }
+      if ($("landing-client-sub-actions")) {
+        $("landing-client-sub-actions").hidden = true;
+      }
     } else {
+      if ($("landing-auth-banner")) $("landing-auth-banner").hidden = true;
+      if ($("landing-hero-actions")) $("landing-hero-actions").hidden = false;
       if ($("landing-client-go")) {
-        $("landing-client-go").textContent = "Go to Client Portal →";
+        $("landing-client-go").textContent = "Enter Client Portal →";
+      }
+      if ($("landing-client-sub-actions")) {
+        $("landing-client-sub-actions").hidden = false;
       }
     }
   } else {
@@ -220,6 +262,12 @@ async function refresh() {
   }
 
   if (!user) {
+    // Unauthenticated visit to /client without a specific action hash directs user to choose an option on '/'
+    if (clientPage && !location.hash) {
+      location.replace("/");
+      return;
+    }
+
     client = null;
     if ($("queue")) $("queue").replaceChildren();
     if ($("count")) $("count").textContent = "Sign in";
@@ -333,7 +381,7 @@ for (const value of ["login", "register", "forgot", "resend"]) {
 
 if ($("switch-role")) {
   $("switch-role").addEventListener("click", () => {
-    location.assign(admin ? "/client" : "/admin");
+    location.assign(admin ? "/client#login" : "/admin");
   });
 }
 
@@ -413,7 +461,7 @@ if ($("turn-dialog")) {
 
 if ($("landing-client-go")) {
   $("landing-client-go").addEventListener("click", () => {
-    location.assign("/client");
+    location.assign(user ? "/client" : "/client#login");
   });
 }
 if ($("landing-client-signin")) {
@@ -431,8 +479,25 @@ if ($("landing-admin-go")) {
     location.assign("/admin");
   });
 }
+if ($("landing-resume-btn")) {
+  $("landing-resume-btn").addEventListener("click", () => {
+    location.assign(user && user.role === "admin" ? "/admin" : "/client");
+  });
+}
+if ($("landing-banner-signout")) {
+  $("landing-banner-signout").addEventListener("click", () =>
+    action(async () => {
+      await api("/auth/logout", {});
+      user = null;
+      csrf = null;
+      client = null;
+      await refresh();
+    }),
+  );
+}
 
-// AUTOMATIC REFRESH
+render();
+poll();
 
 async function poll() {
   try {
@@ -443,6 +508,3 @@ async function poll() {
     setTimeout(poll, 2000);
   }
 }
-
-render();
-poll();
